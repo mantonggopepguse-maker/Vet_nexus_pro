@@ -1,0 +1,497 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  output        = "./generated-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Clinic {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  status       String   @default("Active")
+  storageUsage Float    @default(0)
+  ramUsage     Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  acronym        String?
+  address        String?
+  phone          String?
+  email          String?
+  taxEnabled     Boolean @default(false)
+  taxRate        Float   @default(0)
+  bankName       String?
+  accountName    String?
+  accountNumber  String?
+  currencySymbol String  @default("")
+  country        String  @default("Nigeria")
+  language       String  @default("English")
+  googleDriveRefreshToken String?
+  googleDriveAccessToken  String?
+  googleDriveFolderId     String?
+  googleEmail             String?
+  users          User[]
+  clients        Client[]
+  inventoryItems InventoryItem[]
+  procedures     Procedure[]
+  invites        InviteLink[]
+  auditLogs      AuditLog[]
+  sales          Sale[]
+  appointments   Appointment[]
+  expenses       Expense[]
+  reminders      Reminder[]
+  subscription   Subscription?
+  @@map("clinics")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  username     String?
+  roles        String[]
+  status       String   @default("Active")
+  clinicId     String?
+  isSuperAdmin Boolean  @default(false)
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic     Clinic?     @relation(fields: [clinicId], references: [id])
+  treatments Treatment[]
+  auditLogs  AuditLog[]
+  appointments Appointment[]
+  @@index([clinicId])
+  @@map("users")
+}
+
+model Client {
+  id               String   @id @default(cuid())
+  clinicId         String
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String
+  address          String?
+  registrationDate DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  clinic   Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patients Patient[]
+  appointments Appointment[]
+  sales        Sale[]
+  communications Communication[]
+  media          Media[]
+  reminders      Reminder[]
+  @@index([clinicId])
+  @@index([clinicId, createdAt])
+  @@map("clients")
+}
+
+model Patient {
+  id             String    @id @default(cuid())
+  name           String
+  species        String
+  breed          String?
+  gender         String
+  age            Float
+  dateOfBirth    DateTime?
+  ageYearsEntry  Int?
+  ageMonthsEntry Int?
+  weight         Float
+  color          String?
+  microchipId    String?
+  ownerId        String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  owner      Client      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  treatments Treatment[]
+  media      Media[]
+  appointments Appointment[]
+  vaccinations Vaccination[]
+  reminders    Reminder[]
+  @@index([ownerId])
+  @@index([ownerId, createdAt])
+  @@map("patients")
+}
+
+model InventoryItem {
+  id                 String   @id @default(cuid())
+  clinicId           String
+  name               String
+  description        String?
+  sku                String
+  quantity           Int
+  minThreshold       Int
+  expiryDate         String?
+  category           String
+  packaging          String
+  costPrice          Float
+  wholesalePrice     Float
+  retailPrice        Float
+  imageUrl           String?
+  showInClientPortal Boolean  @default(true)
+  batchNumber        String?
+  manufacturer       String?
+  sales              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  clinic        Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  batches       StockBatch[]
+  cartItems     CartItem[]
+  treatmentMeds TreatmentMedication[]
+  reconciliations InventoryReconciliation[]
+  @@unique([clinicId, sku])
+  @@map("inventory_items")
+}
+
+model StockBatch {
+  id        String   @id @default(cuid())
+  itemId    String
+  date      String
+  quantity  Int
+  note      String?
+  createdAt DateTime @default(now())
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  @@map("stock_batches")
+}
+
+model InventoryReconciliation {
+  id            String   @id @default(cuid())
+  itemId        String
+  performedBy   String
+  date          DateTime @default(now())
+  systemCount   Int
+  physicalCount Int
+  adjustment    Int
+  reason        String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  @@index([itemId])
+  @@map("inventory_reconciliations")
+}
+
+model Procedure {
+  id           String   @id @default(cuid())
+  clinicId     String
+  name         String
+  description  String?
+  category     String?
+  species      String?
+  costClinic   Float
+  costClient   Float
+  instructions String?
+  status       String   @default("Active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic              Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  medications         ProcedureMedication[]
+  treatmentProcedures TreatmentProcedure[]
+  appointments        Appointment[]
+  cartItems           CartItem[]
+  @@index([clinicId])
+  @@map("procedures")
+}
+
+model ProcedureMedication {
+  id          String @id @default(cuid())
+  procedureId String
+  drug        String
+  dose        String
+  route       String
+  freq        String
+  duration    String
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  @@map("procedure_medications")
+}
+
+model Treatment {
+  id             String   @id @default(cuid())
+  patientId      String
+  vetId          String
+  date           DateTime @default(now())
+  chiefComplaint String?
+  diagnosis      String?
+  notes          String?
+  totalCost      Float    @default(0)
+  status         String   @default("Completed")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  patient     Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  vet         User                  @relation(fields: [vetId], references: [id])
+  medications TreatmentMedication[]
+  procedures  TreatmentProcedure[]
+  @@index([patientId])
+  @@index([vetId])
+  @@map("treatments")
+}
+
+model TreatmentMedication {
+  id          String  @id @default(cuid())
+  treatmentId String
+  itemId      String?
+  drug        String
+  dose        String
+  route       String
+  freq        String
+  duration    String
+  cost        Float   @default(0)
+  treatment Treatment      @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  item      InventoryItem? @relation(fields: [itemId], references: [id])
+  @@map("treatment_medications")
+}
+
+model TreatmentProcedure {
+  id          String @id @default(cuid())
+  treatmentId String
+  procedureId String
+  cost        Float
+  treatment Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id])
+  @@map("treatment_procedures")
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  clinicId      String
+  invoiceNumber String
+  type          String
+  status        String   @default("Completed")
+  subtotal      Float
+  discount      Float    @default(0)
+  tax           Float    @default(0)
+  total         Float
+  paymentMethod String?
+  clientId      String?
+  clientName    String?
+  amountPaid    Float    @default(0)
+  balanceDue    Float    @default(0)
+  issuerName    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+  clinic Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  client Client?     @relation(fields: [clientId], references: [id])
+  items  CartItem[]
+  @@index([clinicId])
+  @@index([clientId])
+  @@index([clinicId, createdAt, status])
+  @@index([clinicId, balanceDue])
+  @@unique([clinicId, invoiceNumber])
+  @@map("sales")
+}
+
+model CartItem {
+  id           String @id @default(cuid())
+  saleId       String
+  itemId       String?
+  procedureId  String?
+  name         String?
+  quantity     Int
+  pricePerUnit Float
+  sale      Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  item      InventoryItem? @relation(fields: [itemId], references: [id])
+  procedure Procedure?     @relation(fields: [procedureId], references: [id])
+  @@map("cart_items")
+}
+
+model InviteLink {
+  id        String   @id @default(cuid())
+  clinicId  String?
+  code      String   @unique
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  @@map("invite_links")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  clinicId  String?
+  userId    String
+  userName  String
+  module    String
+  action    String
+  details   String
+  timestamp DateTime @default(now())
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+  @@map("audit_logs")
+}
+
+model Appointment {
+  id           String   @id @default(cuid())
+  clinicId     String
+  clientId     String?
+  patientId     String?
+  procedureId  String
+  date         String
+  time         String
+  notes        String?
+  status       String   @default("Pending")
+  manualClient Json?
+  staffId      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  client    Client?    @relation(fields: [clientId], references: [id])
+  patient   Patient?   @relation(fields: [patientId], references: [id])
+  procedure Procedure  @relation(fields: [procedureId], references: [id])
+  staff     User?      @relation(fields: [staffId], references: [id])
+  @@index([clinicId])
+  @@index([clientId])
+  @@index([patientId])
+  @@index([procedureId])
+  @@index([staffId])
+  @@index([clinicId, date, status])
+  @@map("appointments")
+}
+
+model Communication {
+  id        String   @id @default(cuid())
+  clientId  String
+  type      String
+  content   String
+  status    String   @default("Sent")
+  sentAt    DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  @@map("communications")
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  clientId  String?
+  patientId String?
+  type      String
+  url       String
+  name      String
+  size      Int?
+  createdAt DateTime @default(now())
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@map("media")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  clinicId    String
+  name        String
+  amount      Float
+  purpose     String
+  date        DateTime @default(now())
+  status      String   @default("Completed")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  @@index([clinicId])
+  @@index([clinicId, date, status])
+  @@map("expenses")
+}
+
+model SubscriptionPlan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  displayName     String
+  priceMonthly    Float    @default(0)
+  priceYearly     Float    @default(0)
+  currency        String   @default("NGN")
+  features        Json
+  maxClients      Int?
+  maxPatients     Int?
+  maxStaff        Int?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  subscriptions   Subscription[]
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  clinicId              String   @unique
+  planId                String
+  status                String   @default("active")
+  billingCycle          String   @default("monthly")
+  currentPeriodStart    DateTime @default(now())
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean  @default(false)
+  flutterwaveCustomerId String?
+  flutterwaveSubId      String?
+  lastPaymentDate       DateTime?
+  nextPaymentDate       DateTime?
+  failedPaymentCount    Int      @default(0)
+  lastReminderSent      DateTime?
+  reminderCount         Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  clinic                Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan @relation(fields: [planId], references: [id])
+  transactions          PaymentTransaction[]
+  @@index([status])
+  @@index([nextPaymentDate])
+  @@map("subscriptions")
+}
+
+model PaymentTransaction {
+  id                    String   @id @default(cuid())
+  subscriptionId        String
+  flutterwaveRef        String   @unique
+  flutterwaveTxId       String?
+  amount                Float
+  currency              String   @default("NGN")
+  status                String
+  paymentMethod         String?
+  cardLast4             String?
+  description           String?
+  metadata              Json?
+  paidAt                DateTime?
+  createdAt             DateTime @default(now())
+  subscription          Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("payment_transactions")
+}
+
+model Vaccination {
+  id             String   @id @default(cuid())
+  patientId      String
+  name           String
+  dateGiven      DateTime @default(now())
+  nextDueDate    DateTime?
+  batchNumber    String?
+  manufacturer   String?
+  administeredBy String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@index([patientId])
+  @@map("vaccinations")
+}
+
+model Reminder {
+  id           String   @id @default(cuid())
+  clinicId     String
+  clientId     String
+  patientId    String?
+  type         String   // e.g., "Vaccination", "Appointment", "Checkup"
+  message      String
+  status       String   @default("Pending") // Pending, Sent, Failed, Cancelled
+  scheduledFor DateTime
+  sentAt       DateTime?
+  referenceId  String?  // Reference to Vaccination ID or Appointment ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  patient      Patient? @relation(fields: [patientId], references: [id])
+  @@index([clinicId])
+  @@index([scheduledFor, status])
+  @@map("reminders")
+}

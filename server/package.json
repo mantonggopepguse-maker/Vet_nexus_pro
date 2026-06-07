@@ -1,0 +1,56 @@
+{
+    "name": "vet-nexus-backend",
+    "version": "1.0.0",
+    "description": "Backend API for Vet Nexus Clinic Management System",
+    "main": "dist/index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:studio": "prisma studio",
+        "prisma:seed": "tsx prisma/seed.ts"
+    },
+    "keywords": [
+        "veterinary",
+        "clinic",
+        "management"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@google/generative-ai": "^0.24.1",
+        "@prisma/client": "5.10.0",
+        "@types/nodemailer": "^7.0.11",
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "date-fns": "^4.1.0",
+        "dompurify": "^3.2.4",
+        "dotenv": "^16.4.7",
+        "express": "^4.21.2",
+        "express-rate-limit": "^7.5.0",
+        "firebase-admin": "^13.10.0",
+        "flutterwave-node-v3": "^1.1.6",
+        "googleapis": "^144.0.0",
+        "isomorphic-dompurify": "^2.20.0",
+        "jsonwebtoken": "^9.0.2",
+        "multer": "^1.4.5-lts.1",
+        "node-cron": "^3.0.3",
+        "nodemailer": "^8.0.1",
+        "prisma": "5.10.0",
+        "zod": "^3.24.1"
+    },
+    "devDependencies": {
+        "@types/bcryptjs": "^2.4.6",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^5.0.0",
+        "@types/express-rate-limit": "^6.0.2",
+        "@types/jsonwebtoken": "^9.0.7",
+        "@types/multer": "^1.4.12",
+        "@types/node": "^22.14.0",
+        "tsx": "^4.19.2",
+        "typescript": "^5.8.2"
+    }
+}

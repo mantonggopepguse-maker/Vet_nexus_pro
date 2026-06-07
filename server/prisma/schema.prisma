@@ -1,0 +1,1107 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Clinic {
+  id                      String            @id @default(cuid())
+  name                    String
+  slug                    String            @unique
+  status                  String            @default("Active")
+  storageUsage            Float             @default(0)
+  ramUsage                Float             @default(0)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  acronym                 String?
+  address                 String?
+  phone                   String?
+  email                   String?
+  taxEnabled              Boolean           @default(false)
+  taxRate                 Float             @default(0)
+  bankName                String?
+  accountName             String?
+  accountNumber           String?
+  currencySymbol          String            @default("")
+  country                 String            @default("Nigeria")
+  language                String            @default("English")
+  googleDriveRefreshToken String?
+  googleDriveAccessToken  String?
+  googleDriveFolderId     String?
+  googleEmail             String?
+  practiceType            String?
+  aiActivities            AIActivity[]
+  aiConversations         AIConversation[]
+  aiTranscripts           AITranscript[]
+  appointments            Appointment[]
+  auditLogs               AuditLog[]
+  clients                 Client[]
+  consentForms            ConsentForm[]
+  expenses                Expense[]
+  faqs                    FAQ[]
+  hospitalizations        Hospitalization[]
+  inventoryItems          InventoryItem[]
+  invites                 InviteLink[]
+  kennels                 Kennel[]
+  labResults              LabResult[]
+  procedures              Procedure[]
+  portalInvites           PortalInvite[]
+  reminders               Reminder[]
+  sales                   Sale[]
+  subscription            Subscription?
+  users                   User[]
+  useShiftTimetable       Boolean           @default(false)
+  shifts                  Shift[]
+  shiftHandoffs           ShiftHandoff[]
+
+  parentClinicId          String?
+  parentClinic            Clinic?           @relation("ClinicBranches", fields: [parentClinicId], references: [id])
+  branches                Clinic[]          @relation("ClinicBranches")
+  surgeries               Surgery[]
+  narcoticLogs            NarcoticLog[]
+  referrals               Referral[]
+
+  @@map("clinics")
+}
+
+model User {
+  id                           String                        @id @default(cuid())
+  email                        String                        @unique
+  password                     String
+  name                         String
+  username                     String?
+  roles                        String[]
+  status                       String                        @default("Active")
+  clinicId                     String?
+  isSuperAdmin                 Boolean                       @default(false)
+  avatarUrl                    String?
+  controlledPin                String?                       // 4-digit PIN for narcotics access
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  aiActivities                 AIActivity[]
+  approvedSoapNotes            AISoapNote[]
+  appointments                 Appointment[]
+  auditLogs                    AuditLog[]
+  flowsheetEntries             FlowsheetEntry[]
+  hospitalizationNotes         HospitalizationNote[]
+  hospitalizationPrescriptions HospitalizationPrescription[]
+  hospitalizations             Hospitalization[]
+  treatments                   Treatment[]
+  treatmentNotes               TreatmentNote[]
+  shifts                       Shift[]
+  shiftHandoffs                ShiftHandoff[]                @relation("HandoffAuthor")
+  surgeries                    Surgery[]                     @relation("SurgeonRelation")
+  anesthesias                  Surgery[]                     @relation("AnesthetistRelation")
+  narcoticLogs                 NarcoticLog[]
+  doctorInChargeHospitalizations Hospitalization[]             @relation("DoctorInChargeRelation")
+  clinic                       Clinic?                       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("users")
+}
+
+model Surgery {
+  id                String            @id @default(cuid())
+  clinicId          String
+  patientId         String
+  surgeonId         String
+  anesthetistId     String?
+  procedureId       String?
+  procedure         Procedure?        @relation(fields: [procedureId], references: [id])
+  date              DateTime          @default(now())
+  startTime         DateTime?
+  endTime           DateTime?
+  status            String            @default("Scheduled") // Scheduled, InProgress, Completed, Cancelled
+  preMeds           String?
+  notes             String?
+  asaScore          Int?              // ASA Physical Status Classification
+  monitoringEntries AnesthesiaEntry[]
+  patient           Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  surgeon           User              @relation("SurgeonRelation", fields: [surgeonId], references: [id])
+  anesthetist       User?             @relation("AnesthetistRelation", fields: [anesthetistId], references: [id])
+  clinic            Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@map("surgeries")
+}
+
+model AnesthesiaEntry {
+  id          String   @id @default(cuid())
+  surgeryId   String
+  timestamp   DateTime @default(now())
+  heartRate   Int?
+  spo2        Int?
+  respiration Int?
+  bpSystolic  Int?
+  bpDiastolic Int?
+  temp        Float?
+  etco2       Int?     // End-tidal CO2
+  fluids      String?  // Fluid rates at this interval
+  notes       String?
+  surgery     Surgery  @relation(fields: [surgeryId], references: [id], onDelete: Cascade)
+
+  @@index([surgeryId])
+  @@map("anesthesia_entries")
+}
+
+model Client {
+  id                      String           @id @default(cuid())
+  clinicId                String
+  clientCode              String?
+  title                   String?
+  firstName               String
+  lastName                String
+  email                   String?
+  phone                   String
+  alternatePhone          String?
+  address                 String?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  emergencyContactRelation String?
+  preferredContact        String?          @default("Phone")
+  referralSource          String?
+  internalNotes           String?
+  tags                    String[]         @default([])
+  registrationDate        DateTime         @default(now())
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  isPortalEnabled         Boolean          @default(false)
+  portalPasswordMustChange Boolean         @default(false)
+  lastLogin               DateTime?
+  password                String?
+  googleDriveRefreshToken String?
+  googleDriveAccessToken  String?
+  googleDriveFolderId     String?
+  aiConversations         AIConversation[]
+  appointments            Appointment[]
+  clinic                  Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  communications          Communication[]
+  consentForms            ConsentForm[]
+  media                   Media[]
+  portalInvites           PortalInvite[]
+  patients                Patient[]
+  reminders               Reminder[]
+  sales                   Sale[]
+
+  @@unique([clinicId, clientCode])
+  @@index([clinicId])
+  @@index([clinicId, createdAt])
+  @@map("clients")
+}
+
+model Patient {
+  id               String            @id @default(cuid())
+  name             String
+  species          String
+  breed            String?
+  gender           String
+  age              Float
+  dateOfBirth      DateTime?
+  ageYearsEntry    Int?
+  ageMonthsEntry   Int?
+  weight           Float
+  color            String?
+  microchipId      String?
+  ownerId          String?
+  triageStatus     String            @default("NONE")
+  triageStartTime  DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  soapNotes        AISoapNote[]
+  aiTranscripts    AITranscript[]
+  appointments     Appointment[]
+  consentForms     ConsentForm[]
+  hospitalizations Hospitalization[]
+  labResults       LabResult[]
+  media            Media[]
+  owner            Client?           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  reminders        Reminder[]
+  treatments       Treatment[]
+  vitals           VitalSign[]
+  vaccinations     Vaccination[]
+  surgeries        Surgery[]
+  narcoticLogs     NarcoticLog[]
+  aiConversations  AIConversation[]
+
+  @@index([ownerId])
+  @@index([ownerId, createdAt])
+  @@map("patients")
+}
+
+model InventoryItem {
+  id                           String                        @id @default(cuid())
+  clinicId                     String
+  name                         String
+  description                  String?
+  sku                          String
+  quantity                     Int
+  minThreshold                 Int
+  expiryDate                   String?
+  category                     String
+  packaging                    String
+  costPrice                    Float
+  wholesalePrice               Float
+  retailPrice                  Float
+  imageUrl                     String?
+  showInClientPortal           Boolean                       @default(true)
+  batchNumber                  String?
+  nafdacNumber                 String?
+  manufacturer                 String?
+  sales                        Int                           @default(0)
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  isControlled                 Boolean                       @default(false)
+  narcoticLogs                 NarcoticLog[]
+  labelInstructions            String?
+  cartItems                    CartItem[]
+  hospitalizationPrescriptions HospitalizationPrescription[]
+  clinic                       Clinic                        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  reconciliations              InventoryReconciliation[]
+  batches                      StockBatch[]
+  treatmentMeds                TreatmentMedication[]
+
+  @@unique([clinicId, sku])
+  @@map("inventory_items")
+}
+
+model StockBatch {
+  id        String        @id @default(cuid())
+  itemId    String
+  date      String
+  quantity  Int
+  note      String?
+  createdAt DateTime      @default(now())
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("stock_batches")
+}
+
+model InventoryReconciliation {
+  id            String        @id @default(cuid())
+  itemId        String
+  performedBy   String
+  date          DateTime      @default(now())
+  systemCount   Int
+  physicalCount Int
+  adjustment    Int
+  reason        String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("inventory_reconciliations")
+}
+
+model Procedure {
+  id                  String                @id @default(cuid())
+  clinicId            String
+  name                String
+  description         String?
+  category            String?
+  species             String?
+  costClinic          Float
+  costClient          Float
+  instructions        String?
+  status              String                @default("Active")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  appointments        Appointment[]
+  cartItems           CartItem[]
+  medications         ProcedureMedication[]
+  clinic              Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  treatmentProcedures TreatmentProcedure[]
+  surgeries           Surgery[]
+
+  @@index([clinicId])
+  @@map("procedures")
+}
+
+model ProcedureMedication {
+  id          String    @id @default(cuid())
+  procedureId String
+  drug        String
+  dose        String
+  route       String
+  freq        String
+  duration    String
+  procedure   Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+
+  @@map("procedure_medications")
+}
+
+model Treatment {
+  id             String                @id @default(cuid())
+  patientId      String
+  vetId          String
+  date           DateTime              @default(now())
+  endDate        DateTime?
+  chiefComplaint String?
+  diagnosis      String?
+  notes          String?
+  totalCost      Float                 @default(0)
+  status         String                @default("Completed")
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  medications    TreatmentMedication[]
+  procedures     TreatmentProcedure[]
+  treatmentNotes TreatmentNote[]
+  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  vet            User                  @relation(fields: [vetId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([vetId])
+  @@map("treatments")
+}
+
+model TreatmentNote {
+  id          String    @id @default(cuid())
+  treatmentId String
+  vetId       String
+  date        DateTime  @default(now())
+  note        String
+  createdAt   DateTime  @default(now())
+  treatment   Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  vet         User      @relation(fields: [vetId], references: [id])
+
+  @@index([treatmentId])
+  @@index([vetId])
+  @@map("treatment_notes")
+}
+
+model TreatmentMedication {
+  id          String         @id @default(cuid())
+  treatmentId String
+  itemId      String?
+  drug        String
+  dose        String
+  route       String
+  freq        String
+  duration    String
+  cost        Float          @default(0)
+  item        InventoryItem? @relation(fields: [itemId], references: [id])
+  treatment   Treatment      @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@map("treatment_medications")
+}
+
+model TreatmentProcedure {
+  id          String    @id @default(cuid())
+  treatmentId String
+  procedureId String
+  cost        Float
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+  treatment   Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@map("treatment_procedures")
+}
+
+model Sale {
+  id            String     @id @default(cuid())
+  clinicId      String
+  invoiceNumber String
+  type          String
+  status        String     @default("Completed") // Completed, Pending, Voided, Deleted
+  subtotal      Float
+  discount      Float      @default(0)
+  tax           Float      @default(0)
+  total         Float
+  paymentMethod String?    // Legacy: remains for backward compatibility
+  clientId      String?
+  clientName    String?
+  amountPaid    Float      @default(0)
+  balanceDue    Float      @default(0)
+  issuerName    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
+  items         CartItem[]
+  payments      Payment[]
+  client        Client?    @relation(fields: [clientId], references: [id])
+  clinic        Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, invoiceNumber])
+  @@index([clinicId])
+  @@index([clientId])
+  @@index([clinicId, createdAt, status])
+  @@index([clinicId, balanceDue])
+  @@map("sales")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  saleId        String
+  amount        Float
+  method        String   @default("Cash") // Cash, Card, Bank Transfer, Check
+  reference     String?  // Transaction ID, check number, etc.
+  recordedBy    String?
+  date          DateTime @default(now())
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("payments")
+}
+
+model CartItem {
+  id           String         @id @default(cuid())
+  saleId       String
+  itemId       String?
+  procedureId  String?
+  name         String?
+  quantity     Int
+  pricePerUnit Float
+  item         InventoryItem? @relation(fields: [itemId], references: [id])
+  procedure    Procedure?     @relation(fields: [procedureId], references: [id])
+  sale         Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+}
+
+model InviteLink {
+  id        String   @id @default(cuid())
+  clinicId  String?
+  code      String   @unique
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("invite_links")
+}
+
+model PortalInvite {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  clinicId      String
+  clientId      String
+  emailSnapshot String
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  revokedAt     DateTime?
+  invitedBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, clientId])
+  @@index([token, expiresAt])
+  @@map("portal_invites")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  clinicId  String?
+  userId    String
+  userName  String
+  module    String
+  action    String
+  details   String
+  timestamp DateTime @default(now())
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+model Appointment {
+  id           String    @id @default(cuid())
+  clinicId     String
+  clientId     String?
+  patientId    String?
+  procedureId  String
+  date         String
+  time         String
+  notes        String?
+  status       String    @default("Pending")
+  manualClient Json?
+  staffId      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  client       Client?   @relation(fields: [clientId], references: [id])
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient?  @relation(fields: [patientId], references: [id])
+  procedure    Procedure @relation(fields: [procedureId], references: [id])
+  staff        User?     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([clientId])
+  @@index([patientId])
+  @@index([procedureId])
+  @@index([staffId])
+  @@index([clinicId, date, status])
+  @@map("appointments")
+}
+
+model Communication {
+  id        String   @id @default(cuid())
+  clientId  String
+  staffId   String?
+  staffName String?
+  type      String
+  content   String
+  status    String   @default("Sent")
+  sentAt    DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("communications")
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  clientId  String?
+  patientId String?
+  type      String
+  url       String
+  name      String
+  size      Int?
+  createdAt DateTime @default(now())
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  clinicId  String
+  name      String
+  amount    Float
+  purpose   String
+  date      DateTime @default(now())
+  status    String   @default("Completed")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([clinicId, date, status])
+  @@map("expenses")
+}
+
+model SubscriptionPlan {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  displayName   String
+  priceMonthly  Float          @default(0)
+  priceYearly      Float          @default(0)
+  currency         String         @default("NGN")
+  features         Json
+  flwPlanIdMonthly String?
+  flwPlanIdYearly  String?
+  maxClients       Int?
+  maxPatients      Int?
+  maxStaff         Int?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  subscriptions    Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                    String               @id @default(cuid())
+  clinicId              String               @unique
+  planId                String
+  status                String               @default("active")
+  billingCycle          String               @default("monthly")
+  currentPeriodStart    DateTime             @default(now())
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean              @default(false)
+  flutterwaveCustomerId String?
+  flutterwaveSubId      String?
+  lastPaymentDate       DateTime?
+  nextPaymentDate       DateTime?
+  failedPaymentCount    Int                  @default(0)
+  lastReminderSent      DateTime?
+  reminderCount         Int                  @default(0)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  transactions          PaymentTransaction[]
+  clinic                Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan     @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@index([nextPaymentDate])
+  @@map("subscriptions")
+}
+
+model PaymentTransaction {
+  id              String       @id @default(cuid())
+  subscriptionId  String
+  flutterwaveRef  String       @unique
+  flutterwaveTxId String?
+  amount          Float
+  currency        String       @default("NGN")
+  status          String
+  paymentMethod   String?
+  cardLast4       String?
+  description     String?
+  metadata        Json?
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("payment_transactions")
+}
+
+model Vaccination {
+  id             String    @id @default(cuid())
+  patientId      String
+  name           String
+  dateGiven      DateTime  @default(now())
+  nextDueDate    DateTime?
+  batchNumber    String?
+  manufacturer   String?
+  administeredBy String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("vaccinations")
+}
+
+model Reminder {
+  id           String    @id @default(cuid())
+  clinicId     String
+  clientId     String
+  patientId    String?
+  type         String
+  message      String
+  status       String    @default("Pending")
+  scheduledFor DateTime
+  sentAt       DateTime?
+  referenceId  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient?  @relation(fields: [patientId], references: [id])
+
+  @@index([clinicId])
+  @@index([scheduledFor, status])
+  @@map("reminders")
+}
+
+model AIActivity {
+  id         String    @id @default(cuid())
+  clinicId   String
+  userId     String
+  agentType  String
+  action     String
+  inputData  Json?
+  outputData Json?
+  status     String
+  approvedBy String?
+  approvedAt DateTime?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
+  @@index([userId])
+  @@index([agentType])
+  @@index([status])
+  @@map("ai_activities")
+}
+
+model AITranscript {
+  id            String      @id @default(cuid())
+  clinicId      String
+  patientId     String?
+  audioUrl      String?
+  audioSize     Int?
+  audioDuration Int?
+  transcript    String
+  confidence    Float?
+  language      String      @default("en")
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  soapNote      AISoapNote?
+  clinic        Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient?    @relation(fields: [patientId], references: [id])
+
+  @@index([clinicId, createdAt])
+  @@index([patientId])
+  @@map("ai_transcripts")
+}
+
+model AISoapNote {
+  id             String        @id @default(cuid())
+  transcriptId   String?       @unique
+  patientId      String
+  subjective     String
+  objective      String
+  assessment     String
+  plan           String
+  status         String
+  approvedBy     String?
+  approvedAt     DateTime?
+  visitSummary   String?
+  dischargeNotes String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  approver       User?         @relation(fields: [approvedBy], references: [id], onDelete: Cascade)
+  patient        Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  transcript     AITranscript? @relation(fields: [transcriptId], references: [id])
+
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_soap_notes")
+}
+
+model AIConversation {
+  id         String      @id @default(cuid())
+  clinicId   String
+  clientId   String?
+  patientId  String?
+  guestPhone String?
+  platform   String
+  status     String      @default("ACTIVE")
+  priority   String      @default("NORMAL")
+  subject    String?
+  category   String?
+  startedAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  client     Client?     @relation(fields: [clientId], references: [id])
+  clinic     Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient    Patient?    @relation(fields: [patientId], references: [id])
+  messages   AIMessage[]
+
+  @@index([clinicId, status])
+  @@index([clientId])
+  @@index([patientId])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  direction      String
+  senderType     String
+  content        String
+  sentAt         DateTime       @default(now())
+  isRead         Boolean        @default(false)
+  attachments    AIMessageAttachment[]
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+model AIMessageAttachment {
+  id        String    @id @default(cuid())
+  messageId String
+  type      String
+  url       String
+  name      String
+  mimeType  String
+  size      Int
+  createdAt DateTime  @default(now())
+  message   AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("ai_message_attachments")
+}
+
+model FAQ {
+  id       String   @id @default(cuid())
+  clinicId String
+  question String
+  answer   String
+  category String?
+  keywords String[]
+  isActive Boolean  @default(true)
+  clinic   Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("faqs")
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  type      String   @default("VERIFICATION")
+
+  @@unique([email, type])
+  @@index([email])
+  @@map("email_verifications")
+}
+
+model Kennel {
+  id               String            @id @default(cuid())
+  clinicId         String
+  name             String
+  type             String            @default("Dog")
+  status           String            @default("Available")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  hospitalizations Hospitalization[]
+  clinic           Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("kennels")
+}
+
+model Hospitalization {
+  id               String                        @id @default(cuid())
+  clinicId         String
+  patientId        String
+  vetId            String
+  kennelId         String
+  status           String                        @default("Admitted")
+  admissionDate    DateTime                      @default(now())
+  dischargeDate    DateTime?
+  reason           String?
+  estimatedCost    Float                         @default(0)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  saleId              String?
+  criticalAlert       String?
+  nursingInstructions String?
+  treatmentPlan       String?
+  doctorInChargeId    String?
+  flowsheetEntries    FlowsheetEntry[]
+  notes               HospitalizationNote[]
+  prescriptions       HospitalizationPrescription[]
+  clinic              Clinic                        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  kennel              Kennel                        @relation(fields: [kennelId], references: [id])
+  patient             Patient                       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  vet                 User                          @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  doctorInCharge      User?                         @relation("DoctorInChargeRelation", fields: [doctorInChargeId], references: [id])
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([kennelId])
+  @@map("hospitalizations")
+}
+
+model Shift {
+  id        String         @id @default(cuid())
+  clinicId  String
+  staffId   String
+  startTime DateTime
+  endTime   DateTime
+  type      String         @default("Day") // Day, Night, Swing, Custom
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  clinic    Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  staff     User           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  handoffs  ShiftHandoff[]
+
+  @@index([clinicId])
+  @@index([staffId])
+  @@map("shifts")
+}
+
+model ShiftHandoff {
+  id        String   @id @default(cuid())
+  clinicId  String
+  authorId  String
+  shiftId   String?
+  toStaffId String?
+  content   String
+  createdAt DateTime @default(now())
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  author    User     @relation("HandoffAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  shift     Shift?   @relation(fields: [shiftId], references: [id])
+
+  @@index([clinicId])
+  @@index([authorId])
+  @@map("shift_handoffs")
+}
+
+model FlowsheetEntry {
+  id                String          @id @default(cuid())
+  hospitalizationId String
+  staffId           String
+  time              DateTime        @default(now())
+  temperature       String?
+  heartRate         String?
+  respiratoryRate   String?
+  notes             String?
+  medicationsGiven  Json?
+  createdAt         DateTime        @default(now())
+  billedItems       Json?
+  hospitalization   Hospitalization @relation(fields: [hospitalizationId], references: [id])
+  staff             User            @relation(fields: [staffId], references: [id])
+
+  @@index([hospitalizationId])
+  @@index([staffId])
+  @@map("flowsheet_entries")
+}
+
+model NarcoticLog {
+  id          String   @id @default(cuid())
+  clinicId    String
+  itemId      String
+  patientId   String?
+  userId      String
+  amountDrawn Float
+  wasteAmount Float    @default(0)
+  balanceAfter Float?   // Legally required: Balance after this log
+  timestamp   DateTime @default(now())
+  reason      String?
+  authPinUsed String?
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+  patient     Patient?      @relation(fields: [patientId], references: [id])
+  user        User          @relation(fields: [userId], references: [id])
+  clinic      Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([patientId])
+  @@map("narcotic_logs")
+}
+
+model HospitalizationNote {
+  id                String          @id @default(cuid())
+  hospitalizationId String
+  vetId             String
+  date              DateTime        @default(now())
+  subjective        String?
+  objective         String?
+  assessment        String?
+  plan              String?
+  createdAt         DateTime        @default(now())
+  hospitalization   Hospitalization @relation(fields: [hospitalizationId], references: [id], onDelete: Cascade)
+  vet               User            @relation(fields: [vetId], references: [id])
+
+  @@index([hospitalizationId])
+  @@index([vetId])
+  @@map("hospitalization_notes")
+}
+
+model HospitalizationPrescription {
+  id                String          @id @default(cuid())
+  hospitalizationId String
+  inventoryItemId   String?
+  vetId             String
+  drugName          String
+  dose              String
+  route             String
+  frequency         String
+  status            String          @default("Active")
+  datePrescribed    DateTime        @default(now())
+  hospitalization   Hospitalization @relation(fields: [hospitalizationId], references: [id], onDelete: Cascade)
+  inventoryItem     InventoryItem?  @relation(fields: [inventoryItemId], references: [id])
+  vet               User            @relation(fields: [vetId], references: [id])
+
+  @@index([hospitalizationId])
+  @@index([inventoryItemId])
+  @@index([vetId])
+  @@map("hospitalization_prescriptions")
+}
+
+model LabResult {
+  id             String   @id @default(cuid())
+  clinicId       String
+  patientId      String
+  testName       String
+  testDate       DateTime @default(now())
+  numericalValue Float?
+  unit           String?
+  referenceRange String?
+  result         String?
+  findings       String?
+  mediaUrl       String?
+  status         String   @default("Final")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([clinicId])
+  @@map("lab_results")
+}
+
+model ConsentForm {
+  id            String    @id @default(cuid())
+  clinicId      String
+  patientId     String
+  clientId      String
+  type          String
+  content       String
+  signedBy      String?
+  signatureDate DateTime?
+  ipAddress     String?
+  status        String    @default("Pending")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([clientId])
+  @@map("consent_forms")
+}
+
+model PendingRegistration {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  registrationData Json
+  txRef           String   @unique
+  status          String   @default("pending") // pending, completed, failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("pending_registrations")
+}
+model Referral {
+  id                String   @id @default(cuid())
+  clinicId          String
+  submittingVetName String
+  submittingClinic  String
+  submittingEmail   String
+  submittingPhone   String
+  patientName       String
+  patientSpecies    String
+  patientBreed      String?
+  patientAge        String?
+  clientName        String
+  history           String   @db.Text
+  reasonForReferral String   @db.Text
+  urgency           String   @default("Routine") // Routine, Urgent, Emergency
+  status            String   @default("Pending") // Pending, Reviewed, Accepted, Declined
+  assignedVetId     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  clinic            Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("referrals")
+}
+
+model VitalSign {
+  id        String   @id @default(cuid())
+  patientId String
+  type      String   // Weight, Temperature, HeartRate, RespiratoryRate, etc.
+  value     Float
+  unit      String
+  timestamp DateTime @default(now())
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("vital_signs")
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Vet Nexus",
+  "description": "A glassmorphic multi-tenant clinic management system with smart inventory scanning.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
