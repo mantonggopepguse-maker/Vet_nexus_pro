@@ -583,12 +583,21 @@ export const api = {
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ imageBase64 }),
             }).then(handleResponse),
-        suggestDiagnosis: (complaint: string, assessment: string): Promise<any[]> =>
+        suggestDiagnosis: (complaint: string, assessment: string, patientContext?: any): Promise<any[]> =>
             fetch(`${API_URL}/ai/suggest-diagnosis`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ complaint, assessment }),
+                body: JSON.stringify({ complaint, assessment, patientContext }),
             }).then(handleResponse),
+        dictate: (audioFile: File): Promise<any> => {
+            const formData = new FormData();
+            formData.append('audio', audioFile);
+            return fetch(`${API_URL}/ai/dictate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: formData,
+            }).then(handleResponse);
+        },
     },
 
     // Expenses
@@ -884,6 +893,12 @@ export const api = {
                 headers: getAuthHeaders(),
                 body: JSON.stringify(data),
             }).then(handleResponse),
+        suggestLabPlan: (data: { patientId: string; complaint: string; clinicalSigns: string; vitals: any; problems?: string[] }): Promise<any> =>
+            fetch(`${API_URL}/ai-diagnostic/suggest-lab-plan`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
     },
 
     aiImaging: {
@@ -930,7 +945,7 @@ export const api = {
             body: JSON.stringify(data),
         }).then(handleResponse),
         getKennels: (): Promise<any[]> => fetch(`${API_URL}/hospitalization/kennels`, { headers: getAuthHeaders() }).then(handleResponse),
-        createKennel: (data: { name: string; type: string }): Promise<any> => fetch(`${API_URL}/hospitalization/kennels`, {
+        createKennel: (data: { name: string; type: string; size?: string; chargePerNight?: number; category?: string }): Promise<any> => fetch(`${API_URL}/hospitalization/kennels`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
