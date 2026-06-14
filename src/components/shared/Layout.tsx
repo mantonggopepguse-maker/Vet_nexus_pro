@@ -25,7 +25,10 @@ import {
   Sparkles,
   Building2,
   Calculator,
-  Microscope
+  Microscope,
+  Wifi,
+  WifiOff,
+  Activity
 } from 'lucide-react';
 import { AppView, User, ClinicSettings } from '../../types';
 import { CommandPalette } from './CommandPalette';
@@ -33,6 +36,7 @@ import { hasAccess } from '../../config/permissions';
 import { Logo } from './Logo';
 import { api } from '../../services/apiService';
 import { toast } from 'sonner';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface LayoutProps {
   children: ReactNode;
@@ -142,6 +146,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
   const [isQuickAccessOpen, setIsQuickAccessOpen] = React.useState(false);
 
+  const isOnline = useOnlineStatus();
+
+  const ConnectivityBanner = () => {
+    if (isOnline) return null;
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-500/95 backdrop-blur-md text-white text-center py-2 px-4 flex items-center justify-center gap-2 text-sm font-semibold shadow-lg">
+        <WifiOff className="w-4 h-4" />
+        <span>You are offline. Some features may be limited until connection is restored.</span>
+      </div>
+    );
+  };
+
   // Helper to render filtered sidebar items
   const renderSidebarItems = () => {
     const groups = [
@@ -150,6 +166,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
         items: [
           { id: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
           { id: 'APPOINTMENTS', label: 'Appointments', icon: CalendarDays },
+        ]
+      },
+      {
+        label: 'Clinical',
+        items: [
+          { id: 'HOSPITALIZATION', label: 'Hospitalization', icon: Activity },
+          { id: 'ICU_BOARD', label: 'ICU Board', icon: Activity },
         ]
       },
       {
@@ -229,6 +252,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row transition-colors duration-1000 dashboard-shell" style={{ backgroundColor: getPageFoundation() } as React.CSSProperties}>
+      <ConnectivityBanner />
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}

@@ -523,7 +523,11 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
                                                         ? await api.clients.resendPortalInvite(client.id)
                                                         : await api.clients.sendPortalInvite(client.id);
                                                     setClient(response.client || client);
-                                                    toast.success(client.portalAccess?.invite?.status === 'PENDING' ? 'Invite sent again' : 'Invite sent');
+                                                    if (response.emailDelivery && !response.emailDelivery.delivered) {
+                                                        toast.error(`Invite created, but email failed to send: ${response.emailDelivery.error || 'Unknown error'}`);
+                                                    } else {
+                                                        toast.success(client.portalAccess?.invite?.status === 'PENDING' ? 'Invite sent again' : 'Invite sent');
+                                                    }
                                                 } catch (err: any) {
                                                     toast.error(err?.message || 'Failed to send invite');
                                                 }

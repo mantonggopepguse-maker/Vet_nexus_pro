@@ -6,6 +6,20 @@ const router = Router();
 
 const dashboardCache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 60000; // 60 seconds
+const MAX_CACHE_ENTRIES = 200;
+
+function evictOldestCacheEntry() {
+    if (dashboardCache.size < MAX_CACHE_ENTRIES) return;
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+    for (const [key, entry] of dashboardCache) {
+        if (entry.timestamp < oldestTime) {
+            oldestTime = entry.timestamp;
+            oldestKey = key;
+        }
+    }
+    if (oldestKey) dashboardCache.delete(oldestKey);
+}
 
 // Dashboard Statistics Endpoint
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -318,7 +332,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
             weeklyRevenue
         };
 
-        // Update cache
+        // Update cache (with eviction guard)
+        evictOldestCacheEntry();
         dashboardCache.set(cacheKey, { data: result, timestamp: Date.now() });
 
         res.json(result);

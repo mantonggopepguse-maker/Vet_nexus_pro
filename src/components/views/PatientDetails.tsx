@@ -95,6 +95,8 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
     const [generatedReferral, setGeneratedReferral] = useState<string | null>(null);
     const [isGeneratingHomeCare, setIsGeneratingHomeCare] = useState(false);
     const [generatedHomeCare, setGeneratedHomeCare] = useState<string | null>(null);
+    const [showLabRequestForm, setShowLabRequestForm] = useState(false);
+    const [labRequestForm, setLabRequestForm] = useState({ testName: '', sampleType: '', priority: 'Routine', notes: '' });
 
     useEffect(() => {
         loadPatientDetails();
@@ -156,14 +158,25 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
         }
     };
 
-    const handleUpdateTreatment = async (data: any) => {
+    const handleUpdateTreatment = async (data: any, action?: 'DRAFT' | 'INVOICE' | 'RECEIPT') => {
         try {
-            await api.treatments.update(editingTreatment.id, data);
+            const isCopy = data.saveAsCopy === true;
+            const updatedData = { ...data };
+            delete updatedData.saveAsCopy;
+            if (action === 'DRAFT') {
+                updatedData.status = 'Draft';
+            }
+            if (isCopy) {
+                delete updatedData.id;
+                await api.treatments.create(updatedData);
+            } else {
+                await api.treatments.update(editingTreatment.id, updatedData);
+            }
             setEditingTreatment(null);
             loadPatientDetails();
-            toast.success('Treatment updated');
+            toast.success(isCopy ? 'Copy saved as new treatment' : 'Treatment updated');
         } catch (error) {
-            toast.error('Failed to update treatment');
+            toast.error('Failed to save treatment');
         }
     };
 
@@ -244,7 +257,7 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                     </div>
 
                     <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3">
-                        <button onClick={() => setEditingTreatment({})} className="px-4 md:px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold hover:bg-teal-700 transition-all flex items-center justify-center gap-2">
+                        <button onClick={() => setEditingTreatment(null)} className="px-4 md:px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold hover:bg-teal-700 transition-all flex items-center justify-center gap-2">
                             <Plus className="w-4 h-4" /> New visit
                         </button>
                         {onEditPatient && (
@@ -546,15 +559,90 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                                     <h2 className="text-2xl font-bold text-slate-800">Labs</h2>
                                     <p className="text-slate-500 mt-1">Test results and trends.</p>
                                 </div>
-                                {patient.labResults?.some((result: any) => result.numericalValue !== undefined) && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {patient.labResults?.some((result: any) => result.numericalValue !== undefined) && (
+                                        <button
+                                            onClick={() => setSelectedTrendTest(selectedTrendTest ? null : (patient.labResults?.[0]?.testName || null))}
+                                            className="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center gap-2"
+                                        >
+                                            <Activity className="w-4 h-4" /> {selectedTrendTest ? 'Hide trends' : 'Show trends'}
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={() => setSelectedTrendTest(selectedTrendTest ? null : (patient.labResults?.[0]?.testName || null))}
-                                        className="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center gap-2"
+                                        onClick={() => setShowLabRequestForm(!showLabRequestForm)}
+                                        className="px-4 py-2.5 rounded-2xl bg-teal-600 text-white font-semibold flex items-center gap-2 hover:bg-teal-700 transition"
                                     >
-                                        <Activity className="w-4 h-4" /> {selectedTrendTest ? 'Hide trends' : 'Show trends'}
+                                        <Plus className="w-4 h-4" /> Request lab test
                                     </button>
-                                )}
+                                </div>
                             </div>
+
+                            {showLabRequestForm && (
+                                <div className="client-panel-soft p-5 mb-6 space-y-3">
+                                    <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <Microscope className="w-4 h-4 text-teal-600" /> New lab test request
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <input
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-teal-300"
+                                            placeholder="Test name *"
+                                            value={labRequestForm.testName}
+                                            onChange={e => setLabRequestForm(prev => ({ ...prev, testName: e.target.value }))}
+                                        />
+                                        <input
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-teal-300"
+                                            placeholder="Sample type (e.g. Blood)"
+                                            value={labRequestForm.sampleType}
+                                            onChange={e => setLabRequestForm(prev => ({ ...prev, sampleType: e.target.value }))}
+                                        />
+                                        <select
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-teal-300"
+                                            value={labRequestForm.priority}
+                                            onChange={e => setLabRequestForm(prev => ({ ...prev, priority: e.target.value }))}
+                                        >
+                                            <option>Routine</option>
+                                            <option>Urgent</option>
+                                            <option>STAT</option>
+                                        </select>
+                                        <input
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-teal-300"
+                                            placeholder="Notes"
+                                            value={labRequestForm.notes}
+                                            onChange={e => setLabRequestForm(prev => ({ ...prev, notes: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            onClick={() => { setShowLabRequestForm(false); setLabRequestForm({ testName: '', sampleType: '', priority: 'Routine', notes: '' }); }}
+                                            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100"
+                                        >Cancel</button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!labRequestForm.testName.trim()) { toast.error('Test name is required'); return; }
+                                                try {
+                                                    await api.labs.create({
+                                                        patientId,
+                                                        testName: labRequestForm.testName.trim(),
+                                                        status: 'Requested',
+                                                        findings: [
+                                                            labRequestForm.sampleType ? `Sample: ${labRequestForm.sampleType}` : '',
+                                                            labRequestForm.priority ? `Priority: ${labRequestForm.priority}` : '',
+                                                            labRequestForm.notes ? `Notes: ${labRequestForm.notes}` : '',
+                                                        ].filter(Boolean).join('\n'),
+                                                    });
+                                                    toast.success(`Lab test "${labRequestForm.testName}" requested`);
+                                                    setLabRequestForm({ testName: '', sampleType: '', priority: 'Routine', notes: '' });
+                                                    setShowLabRequestForm(false);
+                                                    loadPatientDetails();
+                                                } catch { toast.error('Failed to request lab test'); }
+                                            }}
+                                            className="px-5 py-2 rounded-xl bg-teal-600 text-xs font-bold text-white hover:bg-teal-700 flex items-center gap-2"
+                                        >
+                                            <Plus className="w-3 h-3" /> Request
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {selectedTrendTest && patient.labResults && (
                                 <div className="client-panel-soft p-5 mb-6">
@@ -595,7 +683,23 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                                                         {lab.referenceRange && <p className="text-sm text-slate-400 mt-1">Range: {lab.referenceRange}</p>}
                                                     </div>
                                                 </div>
-                                                <span className="client-badge">{lab.status}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="client-badge">{lab.status}</span>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm(`Delete lab result "${lab.testName}"?`)) return;
+                                                            try {
+                                                                await api.labs.delete(lab.id);
+                                                                toast.success('Lab result deleted');
+                                                                loadPatientDetails();
+                                                            } catch { toast.error('Failed to delete lab result'); }
+                                                        }}
+                                                        className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 hover:border-rose-200 transition"
+                                                        title="Delete lab result"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             {lab.findings && <p className="mt-4 text-sm text-slate-600 bg-white p-4 rounded-2xl border border-slate-200">{lab.findings}</p>}
                                             {lab.mediaUrl && (
@@ -616,6 +720,7 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                 <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur overflow-y-auto">
                     <div className="max-w-7xl mx-auto p-4 md:p-8">
                         <NewTreatmentForm
+                            key={editingTreatment?.id || 'new'}
                             clients={clients}
                             patients={patient ? [patient] : []}
                             settings={settings}
@@ -680,6 +785,44 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                                                 </button>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+                            )}
+                            {viewingTreatment.procedures?.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-slate-500 mb-2">Procedures</h4>
+                                    <div className="space-y-2">
+                                        {viewingTreatment.procedures.map((proc: any, index: number) => (
+                                            <div key={index} className="client-panel-soft p-4 text-sm flex justify-between items-center gap-4">
+                                                <p className="font-bold text-slate-800">{proc.procedure?.name || 'Procedure'}</p>
+                                                <p className="text-slate-500">{settings.currencySymbol}{proc.cost}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {viewingTreatment.totalCost !== undefined && (
+                                <div className="client-panel-soft p-4 flex justify-between items-center font-bold text-slate-800">
+                                    <span>Total Cost</span>
+                                    <span>{settings.currencySymbol}{viewingTreatment.totalCost}</span>
+                                </div>
+                            )}
+                            {viewingTreatment.hospitalization && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-slate-500 mb-2">Hospitalization</h4>
+                                    <div className="client-panel-soft p-4 text-sm text-slate-700">
+                                        <p><span className="font-bold">Reason:</span> {viewingTreatment.hospitalization.reason}</p>
+                                        <p><span className="font-bold">Status:</span> {viewingTreatment.hospitalization.status}</p>
+                                    </div>
+                                </div>
+                            )}
+                            {viewingTreatment.nextAppointment && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-slate-500 mb-2">Follow-up Appointment</h4>
+                                    <div className="client-panel-soft p-4 text-sm text-slate-700">
+                                        <p><span className="font-bold">Date:</span> {new Date(viewingTreatment.nextAppointment.date).toLocaleDateString()}</p>
+                                        <p><span className="font-bold">Time:</span> {viewingTreatment.nextAppointment.time}</p>
+                                        {viewingTreatment.nextAppointment.notes && <p><span className="font-bold">Notes:</span> {viewingTreatment.nextAppointment.notes}</p>}
                                     </div>
                                 </div>
                             )}

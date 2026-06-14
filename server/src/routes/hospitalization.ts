@@ -33,9 +33,16 @@ router.get('/kennels', authenticate, async (req: AuthRequest, res) => {
 router.post('/kennels', authenticate, async (req: AuthRequest, res) => {
     try {
         const { clinicId } = req.user!;
-        const { name, type } = req.body;
+        const { name, type, size, chargePerNight, category } = req.body;
         const kennel = await prisma.kennel.create({
-            data: { clinicId: clinicId!, name, type }
+            data: {
+                clinicId: clinicId!,
+                name,
+                type: type || 'General Ward',
+                size: size || null,
+                chargePerNight: chargePerNight || 0,
+                category: category || 'General'
+            }
         });
         res.status(201).json(kennel);
     } catch (error) {

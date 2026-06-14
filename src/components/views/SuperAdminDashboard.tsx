@@ -307,7 +307,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onView
                             Super admin
                         </div>
                         <div>
-                            <h1 className="section-title text-4xl md:text-5xl">Control Center</h1>
+                            <h1 className="section-title text-4xl md:text-5xl">Dashboard</h1>
                             <p className="mt-3 max-w-2xl text-base md:text-lg font-semibold text-slate-500">
                                 Manage clinics, plans, invites, and system health from one calm dashboard.
                             </p>

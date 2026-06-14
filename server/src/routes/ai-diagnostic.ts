@@ -34,7 +34,7 @@ router.post('/analyze-case', authenticate, async (req: AuthRequest, res) => {
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.5-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
@@ -93,7 +93,7 @@ router.post('/parse-lab-result', authenticate, async (req: AuthRequest, res) => 
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.5-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
@@ -125,6 +125,100 @@ router.post('/parse-lab-result', authenticate, async (req: AuthRequest, res) => 
 });
 
 // 📈 Health Trends (Vitals)
+router.post('/suggest-lab-plan', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { patientId, complaint, clinicalSigns, vitals, problems } = req.body;
+        const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+        if (!apiKey) return res.status(500).json({ error: 'AI Service configuration missing' });
+
+        const patient = await prisma.patient.findUnique({
+            where: { id: patientId },
+            include: {
+                labResults: { take: 10, orderBy: { testDate: 'desc' } },
+                treatments: { take: 5, orderBy: { date: 'desc' } }
+            }
+        });
+
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const prompt = `
+            You are assisting a veterinarian choosing diagnostic lab tests and samples.
+            Patient: ${patient.species}, ${patient.breed || 'unknown breed'}, ${patient.gender}, ${patient.age} years, ${patient.weight} kg.
+            Complaint: ${complaint || 'Not provided'}
+            Clinical assessment: ${clinicalSigns || 'Not provided'}
+            Vitals: ${JSON.stringify(vitals || {})}
+            Problems: ${(problems || []).join(', ') || 'Not provided'}
+            Recent labs: ${patient.labResults.map(l => `${l.testName}: ${l.numericalValue ?? l.result ?? ''} ${l.unit ?? ''} (${l.status})`).join('; ') || 'None'}
+            Recent diagnoses: ${patient.treatments.map(t => t.diagnosis).filter(Boolean).join('; ') || 'None'}
+
+            Suggest practical veterinary lab tests and samples to collect. Include urgency and a short reason.
+            Return ONLY JSON:
+            {
+              "tests": [{ "testName": string, "sampleType": string, "priority": "Routine" | "Urgent" | "Critical", "reason": string }],
+              "sampleNotes": [string]
+            }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const text = (await result.response).text().replace(/^```json/mi, '').replace(/```$/m, '').trim();
+        res.json(JSON.parse(text));
+    } catch (error) {
+        console.error('Lab plan suggestion error:', error);
+        res.status(500).json({ error: 'Failed to suggest lab plan' });
+    }
+});
+
+router.post('/interpret-lab-result', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { patientId, lab } = req.body;
+        const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+        if (!apiKey) return res.status(500).json({ error: 'AI Service configuration missing' });
+
+        const patient = await prisma.patient.findUnique({
+            where: { id: patientId },
+            include: { labResults: { take: 8, orderBy: { testDate: 'desc' } } }
+        });
+
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const prompt = `
+            Interpret this veterinary lab result for clinician review.
+            Patient: ${patient.species}, ${patient.breed || 'unknown breed'}, ${patient.gender}, ${patient.age} years, ${patient.weight} kg.
+            Lab result: ${JSON.stringify(lab)}
+            Recent labs: ${patient.labResults.map(l => `${l.testName}: ${l.numericalValue ?? l.result ?? ''} ${l.unit ?? ''}; ref ${l.referenceRange ?? 'n/a'}; ${l.findings ?? ''}`).join('\n')}
+
+            Return concise JSON:
+            {
+              "summary": string,
+              "flags": [string],
+              "clinicalConsiderations": [string],
+              "recommendedFollowUp": [string]
+            }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const text = (await result.response).text().replace(/^```json/mi, '').replace(/```$/m, '').trim();
+        res.json(JSON.parse(text));
+    } catch (error) {
+        console.error('Lab interpretation error:', error);
+        res.status(500).json({ error: 'Failed to interpret lab result' });
+    }
+});
+
 router.get('/health-trends/:patientId', authenticate, async (req: AuthRequest, res) => {
     try {
         const { patientId } = req.params;

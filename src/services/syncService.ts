@@ -26,7 +26,7 @@ export const syncService = {
         } catch (error) {
             // Offline: save locally
             console.warn('Offline: Treatment saved locally, will sync later');
-            const localId = await db.treatments.add({
+            const localId = await db.treatments.put({
                 ...rest,
                 id: serverId,
                 synced: 0,
@@ -92,7 +92,7 @@ export const syncService = {
                 date: t.date || t.createdAt
             }));
 
-            await db.treatments.bulkAdd(toAdd);
+            await db.treatments.bulkPut(toAdd);
             return await db.treatments.toArray();
         } catch (error) {
             console.warn('Could not fetch from server, using local data');

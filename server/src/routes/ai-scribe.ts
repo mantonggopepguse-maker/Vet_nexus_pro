@@ -46,7 +46,10 @@ router.post('/transcribe', authenticate, upload.single('audio'), async (req, res
         // Read file as base64
         const fileData = fs.readFileSync(filePath);
         const base64Data = fileData.toString('base64');
-        const mimeType = req.file.mimetype;
+        let mimeType = req.file.mimetype;
+        if (mimeType === 'audio/octet-stream' || !mimeType) {
+            mimeType = 'audio/webm';
+        }
 
         console.log(`🎙️ Transcribing audio for patient ${patientId || 'unknown'}, size: ${req.file.size}`);
 

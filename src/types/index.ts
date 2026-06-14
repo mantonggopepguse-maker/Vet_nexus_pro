@@ -294,7 +294,7 @@ export interface Procedure {
   status: 'Active' | 'Inactive';
 }
 
-export type UserRole = 'Admin' | 'Veterinarian' | 'Lab Scientist' | 'Vet Tech' | 'Vet Assistant' | 'Receptionist' | 'SUPER_ADMIN';
+export type UserRole = 'Admin' | 'Veterinarian' | 'Lab Scientist' | 'Lab Tech' | 'Vet Tech' | 'Vet Assistant' | 'Receptionist' | 'SUPER_ADMIN';
 
 export interface User {
   id: string;
@@ -367,7 +367,7 @@ export interface Expense {
 }
 
 export type ViewState = 'LIST' | 'ADD_ITEM' | 'EDIT_ITEM' | 'ADD_CLIENT' | 'ADD_PATIENT' | 'ADD_PROCEDURE' | 'NEW_TREATMENT' | 'ADD_STAFF' | 'EDIT_STAFF' | 'EDIT_CLIENT' | 'EDIT_PATIENT';
-export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK';
+export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'HOSPITALIZATION' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK';
 export type SuperAdminView = 'CLINICS' | 'INVITES';
 export type Patient = Pet;
 
@@ -477,6 +477,9 @@ export interface Kennel {
   name: string;
   type: string;
   status: string;
+  size?: string;
+  chargePerNight: number;
+  category: string;
   hospitalizations?: Hospitalization[];
 }
 

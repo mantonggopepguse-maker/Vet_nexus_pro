@@ -33,6 +33,7 @@ import { TriageBoard } from './components/views/TriageBoard';
 import { NarcoticsLockbox } from './components/views/NarcoticsLockbox';
 import { ClinicalCalculators } from './components/views/ClinicalCalculators';
 import { LabHub } from './components/views/LabHub';
+import { Hospitalization } from './components/views/Hospitalization';
 import { PremiumGate } from './components/shared/PremiumGate';
 import { SubscriptionCallback } from './components/views/SubscriptionCallback';
 import { InventoryItem, ViewState, AppView, ClinicSettings, Client, Pet, Procedure, User, LogEntry, Appointment as AppointmentType, Expense } from './types';
@@ -127,6 +128,7 @@ const App: React.FC = () => {
       case 'PATIENT_DETAILS':
       case 'TREATMENTS':
       case 'ICU_BOARD':
+      case 'HOSPITALIZATION':
       case 'TRIAGE':
         foundation = 'var(--aura-clinical)';
         break;
@@ -375,6 +377,8 @@ const App: React.FC = () => {
               setExpenses(data);
               setHasMoreExpenses(data.length === 50);
             }
+            break;
+          case 'HOSPITALIZATION':
             break;
         }
       } catch (error) {
@@ -824,16 +828,18 @@ const App: React.FC = () => {
         );
       case 'LAB_HUB':
         return (
-          <LabHub
-            patients={patients}
-            clients={clients}
-            settings={settings}
-            currentUser={currentUser}
-            onViewPatient={(pid) => {
-              setSelectedPatientId(pid);
-              setCurrentView('PATIENT_DETAILS');
-            }}
-          />
+          <PremiumGate user={currentUser} featureName="Lab Hub" featureKey="hospitalFeatures" description="Access the full lab scientist workspace with AI-powered result parsing, batch entry, and trend analysis.">
+            <LabHub
+              patients={patients}
+              clients={clients}
+              settings={settings}
+              currentUser={currentUser}
+              onViewPatient={(pid) => {
+                setSelectedPatientId(pid);
+                setCurrentView('PATIENT_DETAILS');
+              }}
+            />
+          </PremiumGate>
         );
       case 'CLINIC_DETAILS':
         return selectedClinicId ? (
@@ -1179,6 +1185,10 @@ const App: React.FC = () => {
           >
             <ICUBoard settings={settings} currentUser={currentUser} onNavigate={setCurrentView} />
           </PremiumGate>
+        );
+      case 'HOSPITALIZATION':
+        return (
+          <Hospitalization settings={settings} currentUser={currentUser} />
         );
       case 'SHIFT_TIMETABLE':
         return (

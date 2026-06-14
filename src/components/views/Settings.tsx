@@ -5,7 +5,7 @@ import {
     UserRound, Upload, Shield, CreditCard, Globe, 
     Bell, Settings as SettingsIcon, LayoutGrid, 
     Mail, Phone, MapPin, Briefcase, Loader2,
-    Download, Trash2, AlertTriangle, FileSpreadsheet,
+    Download, Trash2, AlertTriangle, FileSpreadsheet, X,
     Users, Package, ShoppingCart, HeartPulse
 } from 'lucide-react';
 import { ClinicSettings, User } from '../../types';
@@ -33,6 +33,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
     const [showDeleteModal, setShowDeleteModal] = useState<'account' | 'clinic' | null>(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
+    const [displayDensity, setDisplayDensity] = useState(() => localStorage.getItem('displayDensity') || 'Optimum');
+
+    // Subscription management
+    const [showSubscription, setShowSubscription] = useState(false);
+    const [selectedBillingCycle, setSelectedBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+    const [plans, setPlans] = useState<any[]>([]);
+    const [subscription, setSubscription] = useState<any>(null);
+    const [usage, setUsage] = useState<any>(null);
+    const [loadingPlans, setLoadingPlans] = useState(false);
+    const [upgrading, setUpgrading] = useState<string | null>(null);
 
     useEffect(() => {
         setFormData(settings);
@@ -176,18 +186,18 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                 .join('')
             ).map(r => `<tr>${r}</tr>`).join('');
 
-            const headerCells = columns.map(c => `<th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;color:#94a3b8;border-bottom:2px solid #e2e8f0">${c}</th>`).join('');
+            const headerCells = columns.map(c => `<th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:800;letter-spacing:0.15em;text-transform:;color:#94a3b8;border-bottom:2px solid #e2e8f0">${c}</th>`).join('');
 
             const html = `
-            <div style="font-family:'Segoe UI',Arial,sans-serif;padding:32px;max-width:900px;margin:0 auto">
+            <div style="font-family:'Public Sans',sans-serif;padding:32px;max-width:900px;margin:0 auto">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #0f172a">
                 <div>
-                  <div style="font-size:9px;font-weight:900;letter-spacing:0.3em;text-transform:uppercase;color:#14B8A6;margin-bottom:8px">${clinicName}</div>
+                  <div style="font-size:9px;font-weight:900;letter-spacing:0.3em;text-transform:;color:#14B8A6;margin-bottom:8px">${clinicName}</div>
                   <h1 style="font-size:28px;font-weight:900;color:#0f172a;margin:0;letter-spacing:-0.04em">${title}</h1>
                   <p style="font-size:11px;color:#94a3b8;margin-top:6px">Exported on ${now} · ${data.length} records</p>
                 </div>
                 <div style="text-align:right">
-                  <div style="font-size:9px;font-weight:900;letter-spacing:0.2em;text-transform:uppercase;color:#94a3b8">CONFIDENTIAL</div>
+                  <div style="font-size:9px;font-weight:900;letter-spacing:0.2em;text-transform:;color:#94a3b8">CONFIDENTIAL</div>
                   <div style="font-size:9px;color:#cbd5e1;margin-top:4px">VetNexus Pro Clinical System</div>
                 </div>
               </div>
@@ -240,6 +250,68 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
         }
     };
 
+    // Subscription Management
+    const fetchSubscriptionData = async () => {
+        setLoadingPlans(true);
+        try {
+            const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
+
+            const [plansRes, subRes, usageRes] = await Promise.all([
+                fetch(`${apiUrl}/subscription/plans`, { headers }),
+                fetch(`${apiUrl}/subscription/current`, { headers }),
+                fetch(`${apiUrl}/subscription/usage`, { headers })
+            ]);
+
+            if (plansRes.ok) setPlans(await plansRes.json());
+            if (subRes.ok) setSubscription(await subRes.json());
+            if (usageRes.ok) {
+                const usageData = await usageRes.json();
+                setUsage(usageData.usage);
+            }
+        } catch (error) {
+            console.error('Error fetching subscription data:', error);
+            toast.error('Failed to load subscription information');
+        } finally {
+            setLoadingPlans(false);
+        }
+    };
+
+    const handleUpgrade = async (planId: string) => {
+        setUpgrading(planId);
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
+            const response = await fetch(`${apiUrl}/subscription/upgrade/initialize`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ billingCycle: selectedBillingCycle, planId })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.paymentUrl) {
+                window.location.href = data.paymentUrl;
+            } else {
+                toast.error(data.error || 'Failed to start payment');
+            }
+        } catch (error) {
+            console.error('Error upgrading:', error);
+            toast.error('Failed to process upgrade');
+        } finally {
+            setUpgrading(null);
+        }
+    };
+
+    useEffect(() => {
+        if (showSubscription) fetchSubscriptionData();
+    }, [showSubscription]);
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(amount);
+    };
+
     const tabs = [
         { id: 'profile' as const, label: 'My Profile', icon: UserRound, color: 'text-amber-500', bg: 'bg-amber-50', show: true },
         { id: 'clinic' as const, label: 'Clinic Info', icon: Building2, color: 'text-blue-500', bg: 'bg-blue-50', show: isAdmin },
@@ -254,65 +326,52 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
         <div className="space-y-10 animate-fade-in pb-32">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
                 <div>
-                    <h1 className="text-5xl font-black text-slate-800 tracking-tighter uppercase leading-none">Control Center</h1>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-4">System Protocols & Administrative Intelligence</p>
+                    <h1 className="text-3xl font-bold text-slate-800">Settings</h1>
+                    <p className="text-sm text-slate-500 mt-1">Manage your clinic preferences and configuration.</p>
                 </div>
                 {isAdmin && (
                     <button
                         onClick={handleSubmit}
                         disabled={isSaving}
-                        className="btn-luminous btn-luminous-emerald px-10 py-4 text-[11px] uppercase tracking-[0.2em] shadow-2xl"
+                        className="px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
                     >
                         {isSaving ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                            <Save className="w-5 h-5" />
+                            <Save className="w-4 h-4" />
                         )}
-                        {isSaving ? 'Synchronizing...' : 'Commit Configuration'}
+                        {isSaving ? 'Saving...' : 'Save'}
                     </button>
                 )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-                {/* Elite Vertical Navigation */}
-                <div className="lg:col-span-1 space-y-3">
-                    <div className="bg-white/40 backdrop-blur-xl p-3 rounded-[2.5rem] border border-white/60 shadow-2xl ring-1 ring-white/10">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Settings Navigation */}
+                <div className="lg:col-span-1 space-y-2">
+                    <div className="bg-white rounded-2xl border border-slate-100 p-2 shadow-sm">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as TabType)}
-                                className={`w-full flex items-center gap-4 px-6 py-5 rounded-2xl transition-all duration-500 font-black uppercase tracking-widest group relative overflow-hidden ${
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
                                     activeTab === tab.id 
-                                    ? 'text-slate-800' 
-                                    : 'text-slate-400 hover:text-slate-600'
+                                    ? 'bg-slate-900 text-white shadow-sm' 
+                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                 }`}
                             >
-                                {activeTab === tab.id && (
-                                    <div className="absolute inset-0 bg-white rounded-2xl shadow-xl -z-10 animate-fade-in border border-slate-100"></div>
-                                )}
-                                <tab.icon className={`w-5 h-5 transition-transform duration-500 ${activeTab === tab.id ? 'scale-110 text-[#14B8A6]' : 'group-hover:scale-110'}`} />
-                                <span className="text-[10px]">{tab.label}</span>
-                                {activeTab === tab.id && (
-                                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#14B8A6] shadow-[0_0_8px_#14B8A6]"></div>
-                                )}
+                                <tab.icon className="w-4 h-4" />
+                                <span>{tab.label}</span>
                             </button>
                         ))}
                     </div>
 
                     <div className="glass-card p-6 border-white/60">
-                        <div className="flex items-center gap-4 text-slate-400">
-                            <Shield className="w-5 h-5 opacity-30" />
-                            <p className="text-[9px] font-black uppercase tracking-widest leading-relaxed">
-                                Administrative Privileges <br />
-                                <span className="text-[#14B8A6]">Level 4 Access</span>
-                            </p>
                         </div>
-                    </div>
                 </div>
 
                 <div className="lg:col-span-3">
-                    <div className="glass-card p-0 border-white/60 overflow-hidden">
-                        <div className="p-10 lg:p-12">
+                    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                        <div className="p-6 lg:p-8">
                             {activeTab === 'profile' && (
                                 <div className="space-y-12 animate-fade-in">
                                     <div className="flex flex-col md:flex-row items-center md:items-start gap-12 border-b border-slate-100 pb-12">
@@ -321,7 +380,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                 {user?.avatarUrl ? (
                                                     <img src={user.avatarUrl} alt="DP" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-white font-black text-6xl">
+                                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-white font-medium text-6xl">
                                                         {user?.name?.charAt(0) || 'V'}
                                                     </div>
                                                 )}
@@ -339,14 +398,14 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                         
                                         <div className="flex-1 text-center md:text-left space-y-8">
                                             <div>
-                                                <h3 className="font-black text-5xl text-slate-800 tracking-tighter uppercase leading-none">{user?.name}</h3>
+                                                <h3 className="font-medium text-3xl text-slate-800 tracking-tight text-slate-800">{user?.name}</h3>
                                                 <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-6">
                                                     {user?.roles?.map(role => (
-                                                        <span key={role} className="px-5 py-1.5 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-slate-200">
+                                                        <span key={role} className="px-5 py-1.5 rounded-xl bg-slate-900 text-white text-[10px] font-medium tracking-[0.2em] shadow-lg shadow-slate-200">
                                                             {role}
                                                         </span>
                                                     ))}
-                                                    <span className="px-5 py-1.5 rounded-xl bg-white/60 backdrop-blur-md text-[#14B8A6] text-[10px] font-black uppercase tracking-[0.2em] border border-[#14B8A6]/20">
+                                                    <span className="px-5 py-1.5 rounded-xl bg-white/60 backdrop-blur-md text-[#14B8A6] text-[10px] font-medium tracking-[0.2em] border border-[#14B8A6]/20">
                                                         {user?.status}
                                                     </span>
                                                 </div>
@@ -355,11 +414,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl mx-auto md:mx-0">
                                                 <div className="bg-white/60 border border-white px-6 py-4 rounded-2xl shadow-sm flex items-center gap-4">
                                                     <Mail className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-black text-slate-600 text-[11px] uppercase tracking-widest truncate">{user?.email}</span>
+                                                    <span className="font-medium text-slate-600 text-[11px]  tracking-normal truncate">{user?.email}</span>
                                                 </div>
                                                 <div className="bg-white/60 border border-white px-6 py-4 rounded-2xl shadow-sm flex items-center gap-4">
                                                     <Shield className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-black text-slate-600 text-[11px] uppercase tracking-widest">ID: {user?.id.slice(0, 8)}</span>
+                                                    <span className="font-medium text-slate-600 text-[11px]  tracking-normal">ID: {user?.id.slice(0, 8)}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -371,39 +430,39 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                 <Shield className="w-7 h-7" />
                                             </div>
                                             <div>
-                                                <h4 className="font-black text-slate-800 text-xl uppercase tracking-tighter leading-none">Security Encryption Key</h4>
-                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Required for restricted pharmaceutical authorization</p>
+                                                <h4 className="font-medium text-slate-800 text-xl  tracking-tight leading-none">Narcotics PIN</h4>
+                                                <p className="text-[10px] text-slate-400 font-medium mt-2">Required for authorizing restricted actions</p>
                                             </div>
                                         </div>
 
                                         <form onSubmit={handlePinUpdate} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end bg-[#FFFBEB]/40 p-8 rounded-[2.5rem] border border-[#14B8A6]/10">
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Initial Vector (PIN)</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">New PIN</label>
                                                 <input 
                                                     type="password" 
                                                     maxLength={4}
                                                     placeholder="••••"
                                                     value={pinData.pin}
                                                     onChange={e => setPinData(prev => ({...prev, pin: e.target.value}))}
-                                                    className="w-full bg-white border border-white px-6 py-4 rounded-2xl text-2xl font-black tracking-[0.8em] text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                    className="w-full bg-white border border-white px-6 py-4 rounded-2xl text-2xl font-medium tracking-widest text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                 />
                                             </div>
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Confirm Vector</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Confirm PIN</label>
                                                 <input 
                                                     type="password" 
                                                     maxLength={4}
                                                     placeholder="••••"
                                                     value={pinData.confirm}
                                                     onChange={e => setPinData(prev => ({...prev, confirm: e.target.value}))}
-                                                    className="w-full bg-white border border-white px-6 py-4 rounded-2xl text-2xl font-black tracking-[0.8em] text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                    className="w-full bg-white border border-white px-6 py-4 rounded-2xl text-2xl font-medium tracking-widest text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                 />
                                             </div>
                                             <button 
                                                 type="submit"
-                                                className="btn-luminous btn-luminous-neutral bg-white py-5 text-[10px] uppercase tracking-[0.2em] shadow-xl"
+                                                className="btn-luminous btn-luminous-neutral bg-white py-5 text-[10px]  tracking-[0.2em] shadow-xl"
                                             >
-                                                Commit Protocol
+                                                Save PIN
                                             </button>
                                         </form>
                                     </div>
@@ -413,7 +472,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                         <div className="space-y-8">
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Establishment Identity</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Clinic Name</label>
                                                 <div className="relative">
                                                     <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#14B8A6]" />
                                                     <input
@@ -421,19 +480,19 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         name="name"
                                                         value={formData.name}
                                                         onChange={handleChange}
-                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-sm font-black uppercase tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-sm font-medium tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                     />
                                                 </div>
                                             </div>
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Clinical Specialization</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Practice Type</label>
                                                 <div className="relative">
                                                     <Briefcase className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                                                     <select
                                                         name="practiceType"
                                                         value={formData.practiceType || ''}
                                                         onChange={handleChange}
-                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-700 focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner appearance-none"
+                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-xs font-medium text-slate-700 focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner appearance-none"
                                                     >
                                                         <option value="">Select practice type...</option>
                                                         <option value="Small Animal">Small Animal</option>
@@ -445,7 +504,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                 </div>
                                             </div>
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Protocol Identifier (Acronym)</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Clinic Acronym</label>
                                                 <div className="relative">
                                                     <FileText className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                                                     <input
@@ -454,7 +513,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         value={formData.acronym}
                                                         onChange={handleChange}
                                                         placeholder="VET"
-                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-lg font-black text-slate-800 uppercase tracking-[0.3em] focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-lg font-medium text-slate-800  tracking-normal focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                     />
                                                 </div>
                                             </div>
@@ -462,7 +521,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
 
                                         <div className="space-y-8">
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Geospatial Data (Address)</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Address</label>
                                                 <div className="relative">
                                                     <MapPin className="absolute left-5 top-6 w-5 h-5 text-rose-400" />
                                                     <textarea
@@ -470,12 +529,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         value={formData.address || ''}
                                                         onChange={handleChange}
                                                         rows={3}
-                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-[2rem] text-sm font-bold text-slate-700 resize-none focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner uppercase tracking-tight"
+                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-[2rem] text-sm font-bold text-slate-700 resize-none focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner  tracking-tight"
                                                     />
                                                 </div>
                                             </div>
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Communication Terminal</label>
+                                                <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Phone Number</label>
                                                 <div className="relative">
                                                     <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
                                                     <input
@@ -483,7 +542,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         name="phone"
                                                         value={formData.phone || ''}
                                                         onChange={handleChange}
-                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-sm font-black focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                        className="w-full bg-white border border-slate-100 pl-14 pr-6 py-5 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                     />
                                                 </div>
                                             </div>
@@ -494,8 +553,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         <Globe className="w-6 h-6" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-[11px] font-black text-blue-900 uppercase tracking-widest">Multi-Branch Grid</p>
-                                                        <p className="text-[9px] text-blue-400 font-black uppercase mt-1">Network Synchronization</p>
+                                                        <p className="text-[11px] font-medium text-blue-900  tracking-normal">Multiple Branches</p>
+                                                        <p className="text-[9px] text-blue-400 font-medium mt-1">Manage your clinic branches</p>
                                                     </div>
                                                 </div>
                                                 <button 
@@ -518,26 +577,26 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                     <Wallet className="w-7 h-7" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Fiscal Infrastructure</h4>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Banking & Revenue Protocols</p>
+                                                    <h4 className="font-medium text-slate-800 text-xl  tracking-tight">Bank Details</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-2">Manage your bank account information</p>
                                                 </div>
                                             </div>
                                             <div className="space-y-6 bg-white/40 p-8 rounded-[2.5rem] border border-white shadow-inner">
                                                 <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Financial Institution</label>
-                                                    <input type="text" name="bankName" value={formData.bankName || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
+                                                    <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Bank Name</label>
+                                                    <input type="text" name="bankName" value={formData.bankName || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-sm font-medium tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
                                                 </div>
                                                 <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Account Beneficiary</label>
-                                                    <input type="text" name="accountName" value={formData.accountName || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
+                                                    <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Account Name</label>
+                                                    <input type="text" name="accountName" value={formData.accountName || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-sm font-medium tracking-tight focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
                                                 </div>
                                                 <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Routing Identifier</label>
-                                                    <input type="text" name="accountNumber" value={formData.accountNumber || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-lg font-black tracking-[0.3em] focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
+                                                    <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Account Number</label>
+                                                    <input type="text" name="accountNumber" value={formData.accountNumber || ''} onChange={handleChange} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl text-lg font-medium tracking-normal focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner" />
                                                 </div>
                                                 <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Monetary Token</label>
-                                                    <input type="text" name="currencySymbol" value={formData.currencySymbol || ''} onChange={handleChange} className="w-32 bg-white border border-slate-100 px-6 py-4 rounded-2xl text-2xl font-black text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner text-[#14B8A6]" />
+                                                    <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Currency Symbol</label>
+                                                    <input type="text" name="currencySymbol" value={formData.currencySymbol || ''} onChange={handleChange} className="w-32 bg-white border border-slate-100 px-6 py-4 rounded-2xl text-2xl font-medium text-center focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner text-[#14B8A6]" />
                                                 </div>
                                             </div>
                                         </div>
@@ -548,16 +607,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                     <FileText className="w-7 h-7" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Tax Compliance</h4>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Automated Policy Enforcement</p>
+                                                    <h4 className="font-medium text-slate-800 text-xl  tracking-tight">Tax Settings</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-2">Configure your tax preferences</p>
                                                 </div>
                                             </div>
                                             
                                             <div className="glass-card p-8 bg-gradient-to-br from-slate-50 to-white hover:shadow-2xl transition-all duration-500 group border-white/60">
                                                 <div className="flex items-center justify-between">
                                                     <div className="space-y-1">
-                                                        <p className="font-black text-slate-800 uppercase text-xs tracking-widest">Autonomous Calculation</p>
-                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-tight">Apply standardized tax rates</p>
+                                                        <p className="font-medium text-slate-800  text-xs tracking-normal">Enable Tax</p>
+                                                        <p className="text-[9px] text-slate-400 font-medium tracking-tight">Automatically apply tax to invoices</p>
                                                     </div>
                                                     <label className="relative inline-flex items-center cursor-pointer">
                                                         <input
@@ -573,106 +632,98 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
 
                                                 {formData.taxEnabled && (
                                                     <div className="mt-10 space-y-3 animate-fade-in">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2">Rate Percentage</label>
+                                                        <label className="text-sm font-medium text-slate-500 mb-1 pl-2">Tax Rate</label>
                                                         <div className="relative">
                                                             <input
                                                                 type="number"
                                                                 name="taxRate"
                                                                 value={formData.taxRate}
                                                                 onChange={handleChange}
-                                                                className="w-full bg-white border border-slate-100 px-8 py-5 rounded-2xl text-3xl font-black focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
+                                                                className="w-full bg-white border border-slate-100 px-8 py-5 rounded-2xl text-3xl font-medium focus:ring-2 focus:ring-[#14B8A6]/20 outline-none shadow-inner"
                                                             />
-                                                            <div className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xl">%</div>
+                                                            <div className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 font-medium text-lg">%</div>
                                                         </div>
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="p-8 rounded-[2.5rem] bg-slate-900 text-white flex items-start gap-6 shadow-2xl relative overflow-hidden group">
-                                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-1000"></div>
-                                                <CreditCard className="w-10 h-10 text-[#14B8A6] shrink-0" />
-                                                <div>
-                                                    <h5 className="font-black text-lg uppercase tracking-tighter">Enterprise Plan</h5>
-                                                    <p className="text-slate-400 text-[10px] mt-2 font-black uppercase tracking-widest leading-relaxed">
-                                                        Active Subscription: <span className="text-white">{settings.subscription?.plan?.name || 'Vanguard Edition'}</span>
-                                                    </p>
-                                                    <button className="mt-6 text-[9px] font-black uppercase tracking-[0.2em] text-slate-900 bg-[#14B8A6] px-6 py-3 rounded-xl shadow-lg hover:translate-x-2 transition-transform active:scale-95">
-                                                        Upgrade Hierarchy →
-                                                    </button>
+                                            <div className="p-6 rounded-2xl bg-slate-900 text-white border border-slate-700">
+                                                <div className="flex items-center gap-4 mb-4">
+                                                    <CreditCard className="w-8 h-8 text-blue-400" />
+                                                    <div>
+                                                        <h5 className="font-semibold text-lg">Subscription</h5>
+                                                        <p className="text-sm text-slate-400">
+                                                            Current Plan: <span className="text-white font-medium">{settings.subscription?.plan?.name || 'Free'}</span>
+                                                        </p>
+                                                    </div>
                                                 </div>
+                                                <button
+                                                    onClick={() => setShowSubscription(true)}
+                                                    className="mt-4 px-6 py-3 bg-white text-slate-900 rounded-xl text-sm font-medium hover:bg-slate-100 transition-all shadow-lg"
+                                                >
+                                                    Manage Subscription
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             )}                              {activeTab === 'integrations' && (
-                                <div className="space-y-12 animate-fade-in">
-                                    <div className="max-w-3xl">
-                                        <div className="flex items-center gap-5 mb-10">
-                                            <div className="w-16 h-16 rounded-[1.5rem] bg-orange-500 text-white flex items-center justify-center shadow-2xl shadow-orange-200">
-                                                <Cloud className="w-8 h-8" />
+                                <div className="space-y-8 animate-fade-in">
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500">
+                                            <Cloud className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-lg font-bold text-slate-800">Integrations</h4>
+                                            <p className="text-sm text-slate-500">Connect third-party services</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-14 h-14 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+                                                    <Globe className="w-7 h-7 text-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <h5 className="font-semibold text-slate-800">Google Drive Backup</h5>
+                                                    <p className="text-xs text-slate-500">Cloud file storage</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h4 className="font-black text-slate-800 text-2xl uppercase tracking-tighter">Third-Party Neural Grid</h4>
-                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Cloud Synapse & External Storage</p>
-                                            </div>
+                                            {settings.googleDriveRefreshToken ? (
+                                                <span className="flex items-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
+                                                    <Check className="w-4 h-4" /> Connected
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">Not Connected</span>
+                                            )}
                                         </div>
 
-                                        <div className="glass-card p-10 bg-gradient-to-br from-white to-slate-50 border-white/60 shadow-2xl group relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-                                            
-                                            <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-10 mb-10">
-                                                <div className="flex items-center gap-8">
-                                                    <div className="w-24 h-24 rounded-[2rem] bg-white shadow-2xl flex items-center justify-center border-4 border-slate-50 ring-1 ring-slate-100">
-                                                        <Globe className="w-12 h-12 text-blue-500" />
-                                                    </div>
-                                                    <div>
-                                                        <h5 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Google Drive Archive</h5>
-                                                        <p className="text-[9px] text-[#14B8A6] font-black uppercase tracking-[0.3em] mt-2">High-Availability Storage</p>
-                                                    </div>
-                                                </div>
-                                                {settings.googleDriveRefreshToken ? (
-                                                    <div className="flex items-center gap-3 text-emerald-600 font-black bg-emerald-50 px-6 py-3 rounded-2xl text-[10px] uppercase tracking-widest border border-emerald-100 shadow-sm animate-pulse">
-                                                        <Check className="w-5 h-5" /> Connected
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-5 py-2 rounded-full uppercase tracking-widest border border-slate-200 shadow-inner">Terminal Offline</span>
-                                                )}
-                                            </div>
+                                        <p className="text-sm text-slate-600 mb-6">
+                                            Back up client records, medical images, and financial documents to your Google Drive. 
+                                            Files are organized by client and patient for easy access.
+                                        </p>
 
-                                            <p className="text-slate-500 font-bold text-sm leading-relaxed mb-10 max-w-2xl">
-                                                Enable autonomous synchronization of clinical dossiers, high-resolution imaging (X-Ray/MRI), and financial ledgers to your secure cloud infrastructure. 
-                                                The system automatically constructs an indexed hierarchy for each client and patient entity.
-                                            </p>
-
-                                            <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-10 border-t border-slate-100">
-                                                <div className="flex -space-x-4">
-                                                    {[1, 2, 3].map(i => (
-                                                        <div key={i} className="w-12 h-12 rounded-full bg-slate-100 border-4 border-white flex items-center justify-center text-slate-400 font-black text-[10px] shadow-xl group-hover:-translate-y-2 transition-transform duration-500" style={{ transitionDelay: `${i * 100}ms` }}>{i === 3 ? '+12' : `S${i}`}</div>
-                                                    ))}
-                                                </div>
-                                                
-                                                <button
-                                                    type="button"
-                                                    disabled={!!settings.googleDriveRefreshToken}
-                                                    onClick={async () => {
-                                                        try {
-                                                            const res = await api.settings.getDriveAuthUrl();
-                                                            if (res.url) window.location.href = res.url;
-                                                        } catch (e) {
-                                                            console.error(e);
-                                                            toast.error('Failed to initiate connection');
-                                                        }
-                                                    }}
-                                                    className={`px-12 py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl ${
-                                                        settings.googleDriveRefreshToken 
-                                                        ? 'bg-slate-100 text-slate-400 cursor-default border border-slate-200' 
-                                                        : 'btn-luminous-emerald btn-luminous text-slate-900 border-4 border-white'
-                                                    }`}
-                                                >
-                                                    {settings.googleDriveRefreshToken ? 'Protocol Active' : 'Initiate Handshake'}
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={!!settings.googleDriveRefreshToken}
+                                            onClick={async () => {
+                                                try {
+                                                    const res = await api.settings.getDriveAuthUrl();
+                                                    if (res.url) window.location.href = res.url;
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    toast.error('Failed to connect to Google Drive');
+                                                }
+                                            }}
+                                            className={`px-8 py-3 rounded-xl text-sm font-medium transition-all ${
+                                                settings.googleDriveRefreshToken 
+                                                ? 'bg-slate-100 text-slate-400 cursor-default border border-slate-200' 
+                                                : 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm'
+                                            }`}
+                                        >
+                                            {settings.googleDriveRefreshToken ? 'Connected' : 'Connect Google Drive'}
+                                        </button>
                                     </div>
                                 </div>
                             )}                              {activeTab === 'preferences' && (
@@ -684,21 +735,21 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                     <Bell className="w-7 h-7" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Signal Protocols</h4>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Notification & Alert Latency</p>
+                                                    <h4 className="font-medium text-slate-800 text-xl  tracking-tight">Notifications</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-2">Manage your alerts and reminders</p>
                                                 </div>
                                             </div>
                                             
                                             <div className="space-y-4">
                                                 {[
-                                                    { id: 'notif_appointments', label: 'Appointment Reminders', desc: 'Pre-emptive staff alert (T-30m)' },
-                                                    { id: 'notif_inventory', label: 'Critical Stock Depletion', desc: 'Real-time threshold monitoring' },
-                                                    { id: 'notif_reports', label: 'Intelligence Briefing', desc: 'Weekly email performance audit' }
+                                                    { id: 'notif_appointments', label: 'Appointment Reminders', desc: 'Alert staff 30 minutes before appointments' },
+                                                    { id: 'notif_inventory', label: 'Low Stock Alerts', desc: 'Notify when inventory is low' },
+                                                    { id: 'notif_reports', label: 'Weekly Reports', desc: 'Receive a weekly summary email' }
                                                 ].map(pref => (
                                                     <div key={pref.id} className="flex items-center justify-between p-6 rounded-[2rem] bg-white border border-slate-100 hover:border-[#14B8A6]/30 hover:shadow-xl transition-all duration-500 group">
                                                         <div>
-                                                            <p className="font-black text-slate-800 text-[11px] uppercase tracking-widest">{pref.label}</p>
-                                                            <p className="text-[9px] text-slate-400 font-black uppercase tracking-tight mt-1">{pref.desc}</p>
+                                                            <p className="font-medium text-slate-800 text-[11px]  tracking-normal">{pref.label}</p>
+                                                            <p className="text-[9px] text-slate-400 font-medium tracking-tight mt-1">{pref.desc}</p>
                                                         </div>
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -709,66 +760,70 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                             </div>
                                         </div>
 
-                                        <div className="space-y-8">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-2xl bg-[#FFFBEB] text-[#14B8A6] border border-[#14B8A6]/10 flex items-center justify-center shadow-xl">
-                                                    <LayoutGrid className="w-7 h-7" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-black text-slate-800 text-xl uppercase tracking-tighter">Interface Geometry</h4>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Visual Density & Grid Scaling</p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="glass-card p-8 bg-amber-50/30 border-white/60 group hover:shadow-2xl transition-all duration-500">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="space-y-1">
-                                                        <p className="font-black text-slate-800 uppercase text-xs tracking-widest">Temporal Roster</p>
-                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-tight">Enable shift-based synchronization</p>
+                                            <div className="space-y-8">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-14 h-14 rounded-2xl bg-[#FFFBEB] text-[#14B8A6] border border-[#14B8A6]/10 flex items-center justify-center shadow-xl">
+                                                        <LayoutGrid className="w-7 h-7" />
                                                     </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            name="useShiftTimetable"
-                                                            checked={formData.useShiftTimetable}
-                                                            onChange={handleChange}
-                                                            className="sr-only peer"
-                                                        />
-                                                        <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-slate-900 shadow-inner"></div>
-                                                    </label>
+                                                    <div>
+                                                        <h4 className="font-medium text-slate-800 text-xl tracking-tight">Screen Spacing</h4>
+                                                        <p className="text-[10px] text-slate-400 font-medium mt-2">Choose how spaced out the screen looks</p>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                
+                                                <div className="glass-card p-8 bg-amber-50/30 border-white/60 group hover:shadow-2xl transition-all duration-500">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-1">
+                                                            <p className="font-medium text-slate-800 text-xs tracking-normal">Shift Schedule</p>
+                                                            <p className="text-[9px] text-slate-400 font-medium tracking-tight">Enable staff shift calendars</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                name="useShiftTimetable"
+                                                                checked={formData.useShiftTimetable}
+                                                                onChange={handleChange}
+                                                                className="sr-only peer"
+                                                            />
+                                                            <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-slate-900 shadow-inner"></div>
+                                                        </label>
+                                                    </div>
+                                                </div>
 
-                                            <div className="space-y-4">
-                                                <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em] text-center mb-4">Rendering Resolution Mode</p>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    {['Compact', 'Optimum', 'Expanded'].map(mode => (
-                                                        <button 
-                                                            key={mode}
-                                                            className={`py-5 rounded-2xl border transition-all font-black text-[10px] uppercase tracking-widest ${mode === 'Optimum' ? 'bg-slate-900 text-white shadow-2xl ring-4 ring-slate-900/10' : 'bg-white border-slate-100 text-slate-400 hover:border-[#14B8A6]/30 shadow-sm'}`}
-                                                        >
-                                                            {mode}
-                                                        </button>
-                                                    ))}
+                                                <div className="space-y-4">
+                                                    <p className="text-[9px] text-slate-400 font-medium tracking-normal text-center mb-4">Spacing Size</p>
+                                                    <div className="grid grid-cols-3 gap-4">
+                                                        {['Compact', 'Optimum', 'Expanded'].map(mode => (
+                                                            <button 
+                                                                key={mode}
+                                                                onClick={() => {
+                                                                    setDisplayDensity(mode);
+                                                                    localStorage.setItem('displayDensity', mode);
+                                                                    toast.success(`Screen spacing set to ${mode === 'Optimum' ? 'Normal' : mode === 'Expanded' ? 'Large' : 'Small'}`);
+                                                                }}
+                                                                className={`py-5 rounded-2xl border transition-all font-medium text-[10px] tracking-normal ${displayDensity === mode ? 'bg-slate-900 text-white shadow-2xl ring-4 ring-slate-900/10' : 'bg-white border-slate-100 text-slate-400 hover:border-[#14B8A6]/30 shadow-sm'}`}
+                                                            >
+                                                                {mode === 'Optimum' ? 'Normal' : mode === 'Expanded' ? 'Large' : 'Small'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
                                     </div>
                                 </div>
                             )}
 
                             {/* ══════════════ DATA & PRIVACY TAB ══════════════ */}
                             {activeTab === 'privacy' && (
-                                <div className="space-y-12 animate-fade-in">
-                                    {/* Header */}
-                                    <div className="border-b border-slate-100 pb-8">
-                                        <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Data &amp; Privacy</h2>
-                                        <p className="text-xs text-slate-400 mt-2 font-medium">Export your clinical data as formal PDF reports, or manage your account lifecycle.</p>
+                                <div className="space-y-8 animate-fade-in">
+                                    <div className="border-b border-slate-100 pb-6">
+                                        <h2 className="text-xl font-bold text-slate-800">Data & Privacy</h2>
+                                        <p className="text-sm text-slate-500 mt-1">Export your data as PDF or manage your account.</p>
                                     </div>
 
                                     {/* ── Export Cards ── */}
                                     <div>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 mb-6">Export Data as PDF</p>
+                                        <p className="text-[9px] font-medium tracking-normal text-slate-400 mb-6">Export Data as PDF</p>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             {[
                                                 { key: 'sales' as const, label: 'Sales & Revenue Ledger', desc: 'All invoices, payments & financial records', icon: ShoppingCart, color: 'from-violet-500 to-purple-600' },
@@ -782,14 +837,14 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                             <Icon className="w-6 h-6 text-white" />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-black text-[11px] uppercase tracking-widest text-slate-800">{label}</p>
+                                                            <p className="font-medium text-[11px]  tracking-normal text-slate-800">{label}</p>
                                                             <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{desc}</p>
                                                         </div>
                                                     </div>
                                                     <button
                                                         onClick={() => exportPDF(key)}
                                                         disabled={isExporting === key}
-                                                        className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all shadow-lg disabled:opacity-60"
+                                                        className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[10px] font-medium hover:bg-slate-700 active:scale-95 transition-all shadow-lg disabled:opacity-60"
                                                     >
                                                         {isExporting === key ? (
                                                             <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
@@ -803,21 +858,21 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                     </div>
 
                                     {/* ── Danger Zone ── */}
-                                    <div className="border border-red-100 rounded-3xl overflow-hidden">
-                                        <div className="bg-red-50 px-8 py-5 flex items-center gap-3">
+                                    <div className="border border-red-100 rounded-2xl overflow-hidden">
+                                        <div className="bg-red-50 px-6 py-4 flex items-center gap-3">
                                             <AlertTriangle className="w-5 h-5 text-red-500" />
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-600">Danger Zone</p>
+                                            <p className="text-sm font-medium text-red-600">Account Management</p>
                                         </div>
                                         <div className="p-8 space-y-6">
                                             {/* Delete personal account */}
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-white border border-red-100">
                                                 <div>
-                                                    <p className="font-black text-[11px] uppercase tracking-widest text-slate-800">Delete Personal Account</p>
+                                                    <p className="font-medium text-[11px]  tracking-normal text-slate-800">Delete Personal Account</p>
                                                     <p className="text-[10px] text-slate-400 mt-1">Permanently remove your staff profile from this clinic. Your clinical records will be preserved.</p>
                                                 </div>
                                                 <button
                                                     onClick={() => { setShowDeleteModal('account'); setDeleteConfirmText(''); }}
-                                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-100 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all whitespace-nowrap flex-shrink-0"
+                                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-100 text-red-600 text-[10px] font-medium hover:bg-red-500 hover:text-white transition-all whitespace-nowrap flex-shrink-0"
                                                 >
                                                     <Trash2 className="w-4 h-4" /> Delete Account
                                                 </button>
@@ -827,12 +882,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                             {isAdmin && (
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-white border-2 border-red-300">
                                                     <div>
-                                                        <p className="font-black text-[11px] uppercase tracking-widest text-red-700">Purge Entire Clinic &amp; All Data</p>
+                                                        <p className="font-medium text-[11px]  tracking-normal text-red-700">Purge Entire Clinic &amp; All Data</p>
                                                         <p className="text-[10px] text-red-400 mt-1">⚠️ This is irreversible. ALL data — clients, patients, sales, inventory — will be permanently deleted.</p>
                                                     </div>
                                                     <button
                                                         onClick={() => { setShowDeleteModal('clinic'); setDeleteConfirmText(''); }}
-                                                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all whitespace-nowrap flex-shrink-0 shadow-lg shadow-red-200"
+                                                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 text-white text-[10px] font-medium hover:bg-red-700 transition-all whitespace-nowrap flex-shrink-0 shadow-lg shadow-red-200"
                                                     >
                                                         <AlertTriangle className="w-4 h-4" /> Purge Clinic
                                                     </button>
@@ -856,8 +911,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                     <div className={`px-8 py-6 flex items-center gap-3 ${showDeleteModal === 'clinic' ? 'bg-red-600' : 'bg-slate-900'}`}>
                         <AlertTriangle className="w-6 h-6 text-white flex-shrink-0" />
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/60">Irreversible Action</p>
-                            <h3 className="font-black text-white text-lg uppercase tracking-tight mt-0.5">
+                            <p className="text-[9px] font-medium tracking-normal text-white/60">Irreversible Action</p>
+                            <h3 className="font-medium text-white text-lg  tracking-tight mt-0.5">
                                 {showDeleteModal === 'clinic' ? 'Purge Entire Clinic' : 'Delete Personal Account'}
                             </h3>
                         </div>
@@ -872,7 +927,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                         </p>
 
                         <div className="bg-red-50 rounded-2xl p-5 border border-red-100">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3">
+                            <p className="text-[10px] font-medium text-red-500 mb-3">
                                 Type{' '}
                                 <span className="font-mono bg-red-100 px-2 py-0.5 rounded-lg text-red-700">
                                     {showDeleteModal === 'clinic' ? (settings.name || 'DELETE CLINIC') : 'DELETE MY ACCOUNT'}
@@ -892,14 +947,14 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                         <div className="flex gap-3 pt-2">
                             <button
                                 onClick={() => { setShowDeleteModal(null); setDeleteConfirmText(''); }}
-                                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:border-slate-300 transition-all"
+                                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 text-[10px] font-medium hover:border-slate-300 transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDeleteAccount}
                                 disabled={isDeleting || deleteConfirmText !== (showDeleteModal === 'clinic' ? (settings.name || 'DELETE CLINIC') : 'DELETE MY ACCOUNT')}
-                                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-200"
+                                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white text-[10px] font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-200"
                             >
                                 {isDeleting ? (
                                     <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
@@ -908,6 +963,132 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                 )}
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* ══════════════ SUBSCRIPTION MANAGEMENT MODAL ══════════════ */}
+        {showSubscription && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" style={{ background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(8px)' }}>
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-8 animate-fade-in border border-slate-200 overflow-hidden">
+                    <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <CreditCard className="w-6 h-6 text-blue-500" />
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800">Subscription Plans</h2>
+                                <p className="text-sm text-slate-500">Choose a plan that works for your clinic</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowSubscription(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-all">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="p-8">
+                        {loadingPlans ? (
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Current Plan */}
+                                {subscription && (
+                                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800">Current Plan</h3>
+                                                <p className="text-sm text-slate-500">{subscription?.plan?.displayName || subscription?.plan?.name || 'Free'}</p>
+                                            </div>
+                                            <span className={`px-4 py-1.5 rounded-xl text-xs font-bold ${subscription.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                                {subscription.status}
+                                            </span>
+                                        </div>
+                                        {usage && (
+                                            <div className="grid grid-cols-3 gap-4 mt-4">
+                                                <div>
+                                                    <span className="text-xs text-slate-400 block">Clients</span>
+                                                    <span className="text-sm font-bold text-slate-800">{usage.clients.current} / {usage.clients.limit ?? 'Unlimited'}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 block">Patients</span>
+                                                    <span className="text-sm font-bold text-slate-800">{usage.patients.current} / {usage.patients.limit ?? 'Unlimited'}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 block">Staff</span>
+                                                    <span className="text-sm font-bold text-slate-800">{usage.staff.current} / {usage.staff.limit ?? 'Unlimited'}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Billing Cycle Toggle */}
+                                <div className="flex justify-center items-center gap-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 max-w-sm mx-auto">
+                                    <button
+                                        onClick={() => setSelectedBillingCycle('monthly')}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedBillingCycle === 'monthly' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Monthly
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedBillingCycle('yearly')}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedBillingCycle === 'yearly' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Yearly (Save 15%)
+                                    </button>
+                                </div>
+
+                                {/* Plans Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {plans.filter((p: any) => p.name !== 'Free').map((plan: any) => (
+                                        <div key={plan.id} className="border border-slate-200 rounded-2xl p-6 flex flex-col hover:shadow-lg transition-all">
+                                            <h3 className="font-bold text-slate-800 text-lg mb-2">{plan.displayName}</h3>
+                                            <p className="text-3xl font-bold text-slate-900 mb-4">
+                                                {formatCurrency(selectedBillingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly)}
+                                                <span className="text-sm font-normal text-slate-400">/{selectedBillingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                                            </p>
+                                            <ul className="space-y-2 mb-6 flex-1">
+                                                <li className="text-sm text-slate-600 flex items-center gap-2">
+                                                    <Check className="w-4 h-4 text-emerald-500" />
+                                                    {plan.maxClients === null ? 'Unlimited' : plan.maxClients} Clients
+                                                </li>
+                                                <li className="text-sm text-slate-600 flex items-center gap-2">
+                                                    <Check className="w-4 h-4 text-emerald-500" />
+                                                    {plan.maxPatients === null ? 'Unlimited' : plan.maxPatients} Patients
+                                                </li>
+                                                <li className="text-sm text-slate-600 flex items-center gap-2">
+                                                    <Check className="w-4 h-4 text-emerald-500" />
+                                                    {plan.maxStaff === null ? 'Unlimited' : plan.maxStaff} Staff
+                                                </li>
+                                                {plan.features?.aiFeatures && (
+                                                    <li className="text-sm text-blue-600 flex items-center gap-2">
+                                                        <Check className="w-4 h-4" /> AI Scribe & Diagnostics
+                                                    </li>
+                                                )}
+                                                {plan.features?.hospitalFeatures && (
+                                                    <li className="text-sm text-rose-600 flex items-center gap-2">
+                                                        <Check className="w-4 h-4" /> ICU & Shift Timetable
+                                                    </li>
+                                                )}
+                                                {plan.features?.multiBranch && (
+                                                    <li className="text-sm text-amber-600 flex items-center gap-2">
+                                                        <Check className="w-4 h-4" /> Multi-Branch Support
+                                                    </li>
+                                                )}
+                                            </ul>
+                                            <button
+                                                onClick={() => handleUpgrade(plan.id)}
+                                                disabled={upgrading === plan.id || subscription?.plan?.name === plan.name}
+                                                className="w-full py-3 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {upgrading === plan.id ? 'Processing...' : subscription?.plan?.name === plan.name ? 'Current Plan' : 'Subscribe'}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

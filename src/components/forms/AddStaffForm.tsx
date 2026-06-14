@@ -10,7 +10,7 @@ interface AddStaffFormProps {
   editingUser?: UserType | null;
 }
 
-const ROLES: UserRole[] = ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'Receptionist'];
+const ROLES: UserRole[] = ['Admin', 'Veterinarian', 'Lab Scientist', 'Lab Tech', 'Vet Tech', 'Vet Assistant', 'Receptionist'];
 
 export const AddStaffForm: React.FC<AddStaffFormProps> = ({ onBack, onSave, onDelete, editingUser }) => {
   const [formData, setFormData] = useState<Partial<UserType>>({
@@ -189,6 +189,7 @@ export const AddStaffForm: React.FC<AddStaffFormProps> = ({ onBack, onSave, onDe
                         {role === 'Admin' && 'Full system access'}
                         {role === 'Veterinarian' && 'Medical treatments & prescriptions'}
                         {role === 'Lab Scientist' && 'Laboratory results & diagnostics'}
+                        {role === 'Lab Tech' && 'Upload lab results & manage samples'}
                         {role === 'Vet Tech' && 'Assist with treatments & care'}
                         {role === 'Vet Assistant' && 'Basic patient care'}
                         {role === 'Receptionist' && 'Client management & billing'}

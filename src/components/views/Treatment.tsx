@@ -45,14 +45,21 @@ export const Treatment: React.FC<TreatmentProps> = ({ clients, patients, setting
     }
   };
 
-  const handleSaveTreatment = async (treatmentData: any) => {
+  const handleSaveTreatment = async (treatmentData: any, action?: 'DRAFT' | 'INVOICE' | 'RECEIPT' | 'SAVE') => {
     try {
+      const isCopy = treatmentData.saveAsCopy === true;
+      const updatedData = { ...treatmentData };
+      if (!isCopy) {
+        updatedData.id = editingTreatment?.id;
+      }
+      delete updatedData.saveAsCopy;
+      if (action === 'DRAFT') {
+         updatedData.status = 'Draft';
+      }
+      
       // The backend POST /treatments now handles everything atomically:
       // treatment + medications + procedures + hospitalization + prescriptions + appointment
-      await syncService.saveTreatment({
-        ...treatmentData,
-        id: editingTreatment?.id
-      });
+      await syncService.saveTreatment(updatedData);
 
       toast.success(editingTreatment ? 'Treatment updated successfully!' : 'Treatment saved successfully!');
       
@@ -74,6 +81,7 @@ export const Treatment: React.FC<TreatmentProps> = ({ clients, patients, setting
   if (viewState === 'NEW_TREATMENT') {
     return (
       <NewTreatmentForm
+        key={editingTreatment?.id || 'new'}
         clients={clients}
         patients={patients}
         settings={settings}

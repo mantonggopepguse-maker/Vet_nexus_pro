@@ -10,21 +10,40 @@ import {
 import { getFirestore } from 'firebase/firestore';
 import { getMessaging, getToken, isSupported, type Messaging } from 'firebase/messaging';
 
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAJ9ISziRaL18_fx1yd_yQ0DktRrq8SKVk',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'vet-nexus-pro-f3931.firebaseapp.com',
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'vet-nexus-pro-f3931',
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'vet-nexus-pro-f3931.firebasestorage.app',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '600245403756',
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:600245403756:web:f74d204cf999e220e7d849',
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-69HR8XFBMN',
-};
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
 
-if (import.meta.env.PROD && (!import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'AIzaSyAJ9ISziRaL18_fx1yd_yQ0DktRrq8SKVk')) {
-    console.warn('CRITICAL: Firebase is utilizing fallback development credentials in a production build!');
+if (import.meta.env.PROD) {
+    const missing = [];
+    if (!apiKey) missing.push('VITE_FIREBASE_API_KEY');
+    if (!authDomain) missing.push('VITE_FIREBASE_AUTH_DOMAIN');
+    if (!projectId) missing.push('VITE_FIREBASE_PROJECT_ID');
+    if (!appId) missing.push('VITE_FIREBASE_APP_ID');
+    if (missing.length > 0) {
+        console.error(`CRITICAL: Firebase fallback credentials used in production! Missing env vars: ${missing.join(', ')}`);
+    }
 }
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const firebaseConfig = {
+    apiKey: apiKey,
+    authDomain: authDomain,
+    projectId: projectId,
+    storageBucket: storageBucket,
+    messagingSenderId: messagingSenderId,
+    appId: appId,
+    measurementId: measurementId,
+};
+
+if (!getApps().length) {
+    initializeApp(firebaseConfig);
+}
+
+const app = getApps()[0];
 
 export const firebaseAuth = getAuth(app);
 export const firestore = getFirestore(app);

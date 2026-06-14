@@ -38,3 +38,11 @@ dist-ssr
 node_modules/
 dist/
 /scratch/
+
+# Deploy scripts with secrets
+deploy.ps1
+deploy-optimized.ps1
+deploy-vetnexus.ps1
+server/list-models.mjs
+server/test-gemini-key.mjs
+server/test-json-mode.mjs

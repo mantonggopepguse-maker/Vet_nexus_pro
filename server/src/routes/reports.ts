@@ -224,7 +224,7 @@ router.post('/referral-synthesis', authenticate, async (req: AuthRequest, res) =
         if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const historyContext = `
             Patient: ${patient.name} (${patient.species}, ${patient.breed}, ${patient.gender}, ${patient.weight}kg)
@@ -292,7 +292,7 @@ router.post('/home-care-instructions', authenticate, async (req: AuthRequest, re
         if (!treatment) return res.status(404).json({ error: 'Treatment record not found' });
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `
             You are a compassionate Veterinary Support Assistant.

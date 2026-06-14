@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, Zap, FileText, CreditCard, ChevronDown, User, PawPrint, ArrowLeft, CalendarDays, AlertCircle, Mic, Square, Loader } from 'lucide-react';
+import { toast } from 'sonner';
+import { Save, Plus, Trash2, Zap, FileText, CreditCard, ChevronDown, User, PawPrint, ArrowLeft, CalendarDays, AlertCircle, Mic, Square, Loader, Microscope } from 'lucide-react';
 import { Client, Pet, ClinicSettings, Procedure, ProcedureMedication, User as UserType } from '../../types';
 import { suggestDiagnosis } from '../../services/geminiService';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
@@ -12,8 +13,9 @@ interface NewTreatmentFormProps {
   procedures: Procedure[];
   currentUser: UserType | null;
   onBack: () => void;
-  onSave: (treatmentData: any) => void;
+  onSave: (treatmentData: any, action: 'DRAFT' | 'INVOICE' | 'RECEIPT' | 'SAVE') => void;
   initialData?: any;
+  isSaving?: boolean;
 }
 
 export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
@@ -24,14 +26,19 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
   currentUser,
   onBack,
   onSave,
-  initialData
+  initialData,
+  isSaving = false
 }) => {
   const isEditMode = Boolean(initialData?.id);
+  const [saveAsCopy, setSaveAsCopy] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [medications, setMedications] = useState<ProcedureMedication[]>([{ id: 1, drug: '', dose: '', route: '', freq: '', duration: '' }]);
   const [problems, setProblems] = useState(['']);
   const [selectedProcedures, setSelectedProcedures] = useState<string[]>([]);
+  const [labRequests, setLabRequests] = useState<Array<{ id: number; testName: string; sampleType: string; priority: string; notes: string }>>([]);
+  const [labPlan, setLabPlan] = useState<any>(null);
+  const [isSuggestingLabs, setIsSuggestingLabs] = useState(false);
 
   // Cost State
   const [procedureCost, setProcedureCost] = useState(0);
@@ -86,70 +93,70 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
     }
 
     if (initialData) {
-      // Edit Mode: Populate from existing record
-      const patient = patients.find(p => p.id === initialData.patientId);
-      setSelectedClientId(patient?.ownerId || '');
-      setSelectedPatientId(initialData.patientId || '');
+      const patientId = initialData.patientId || initialData.patient?.id;
+      const clientId = initialData.clientId || initialData.client?.id;
+      const patient = patients.find(p => p.id === patientId);
+      setSelectedClientId(patient?.ownerId || clientId || '');
+      setSelectedPatientId(patientId || '');
       setPresentingComplaint(initialData.chiefComplaint || '');
 
-      // Parse notes for structured fields if possible, or just dump to instructions/assessment
-      // Assuming simple mapping for now based on typical structure
-      const notes = initialData.notes || '';
-      // Simple extraction logic would go here if notes were structured, likely just manual copy for now
-      setInstructions(notes); // Fallback
       setFinalDiagnosis(initialData.diagnosis || '');
 
       if (initialData.medications) {
-        setMedications(initialData.medications.map((m: any, i: number) => ({ ...m, id: i })));
+        setMedications(initialData.medications.map((m: any, i: number) => ({ ...m, id: i + 1 })));
       }
 
-      setOtherCharges(initialData.totalCost || 0); // Simplified cost mapping
-
-    } else {
-      // New Mode: Load from local storage draft
-      if (currentUser) {
-        const draftKey = `treatment_draft_${currentUser.clinicId}_${currentUser.id}`;
-        const saved = localStorage.getItem(draftKey);
-        if (saved) {
-          try {
-            const draft = JSON.parse(saved);
-            setSelectedClientId(draft.selectedClientId || '');
-            setSelectedPatientId(draft.selectedPatientId || '');
-            setPresentingComplaint(draft.presentingComplaint || '');
-            setClinicalAssessment(draft.clinicalAssessment || '');
-            setFinalDiagnosis(draft.finalDiagnosis || '');
-            setDifferentialDiagnosis(draft.differentialDiagnosis || '');
-            setInstructions(draft.instructions || '');
-            if (draft.medications) setMedications(draft.medications);
-            if (draft.problems) setProblems(draft.problems);
-            if (draft.vitals) setVitals(draft.vitals);
-          } catch (e) { console.error("Failed to load draft"); }
-        }
+      const procData = initialData._procedures || initialData.procedures;
+      if (procData && procData.length > 0 && procedures.length > 0) {
+        const procIds = procData.map((p: any) => p.procedureId || p.id).filter(Boolean);
+        setSelectedProcedures(procIds);
+        const totalProcCost = procIds.reduce((sum: number, pid: string) => {
+          const proc = procedures.find(p => p.id === pid);
+          return sum + (proc?.costClient || 0);
+        }, 0);
+        setProcedureCost(totalProcCost);
       }
+
+      setOtherCharges(initialData.otherCharges || 0);
+      setDiscount(initialData.discount || 0);
+
+      if (initialData.parsedNotes) {
+        if (initialData.parsedNotes.clinicalAssessment) setClinicalAssessment(initialData.parsedNotes.clinicalAssessment);
+        if (initialData.parsedNotes.differentialDiagnosis) setDifferentialDiagnosis(initialData.parsedNotes.differentialDiagnosis);
+        if (initialData.parsedNotes.instructions) setInstructions(initialData.parsedNotes.instructions);
+        if (initialData.parsedNotes.vitals) setVitals(prev => ({ ...prev, ...initialData.parsedNotes.vitals }));
+        if (initialData.parsedNotes.problems) setProblems(initialData.parsedNotes.problems);
+      } else {
+        if (initialData.clinicalAssessment) setClinicalAssessment(initialData.clinicalAssessment);
+        if (initialData.differentialDiagnosis) setDifferentialDiagnosis(initialData.differentialDiagnosis);
+        const notes = initialData.notes || '';
+        if (notes && !initialData.parsedNotes?.instructions) setInstructions(notes);
+      }
+
+      if (initialData.vitals) setVitals(prev => ({ ...prev, ...initialData.vitals }));
+
+      if (initialData.problems && Array.isArray(initialData.problems)) {
+        setProblems(initialData.problems);
+      }
+
+      if (initialData.admitToWard !== undefined) setAdmitToWard(initialData.admitToWard);
+      if (initialData.selectedKennelId) setSelectedKennelId(initialData.selectedKennelId);
+      if (initialData.admissionReason) setAdmissionReason(initialData.admissionReason);
+      if (initialData.estimatedCost) setEstimatedCost(initialData.estimatedCost);
+
+      if (initialData.followUp) setFollowUp(initialData.followUp);
+      if (initialData.followUpDate) setFollowUpDate(initialData.followUpDate);
+
+      if (initialData.isMultiDay) setIsMultiDay(initialData.isMultiDay);
+      if (initialData.treatmentDays) setTreatmentDays(initialData.treatmentDays);
+
+      if (initialData.nextAppointmentDate) setNextAppointmentDate(initialData.nextAppointmentDate);
+      if (initialData.nextAppointmentTime) setNextAppointmentTime(initialData.nextAppointmentTime);
+      if (initialData.nextAppointmentProcedure) setNextAppointmentProcedure(initialData.nextAppointmentProcedure);
+      if (initialData.nextAppointmentNotes) setNextAppointmentNotes(initialData.nextAppointmentNotes);
+
     }
-  }, [initialData]);
-
-  // Persistence logic (Disabled in Edit Mode)
-  useEffect(() => {
-    if (initialData || !currentUser) return;
-    const draftKey = `treatment_draft_${currentUser.clinicId}_${currentUser.id}`;
-    const draft = {
-      selectedClientId,
-      selectedPatientId,
-      presentingComplaint,
-      clinicalAssessment,
-      finalDiagnosis,
-      differentialDiagnosis,
-      instructions,
-      medications,
-      problems,
-      vitals
-    };
-    localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [
-    selectedClientId, selectedPatientId, presentingComplaint, clinicalAssessment,
-    finalDiagnosis, differentialDiagnosis, instructions, medications, problems, vitals, currentUser, initialData
-  ]);
+  }, [initialData, patients, procedures, currentUser]);
 
   const clearDraft = () => {
     if (currentUser) {
@@ -175,19 +182,27 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
       setError('');
       try {
           const file = new File([audioBlob], "dictation.webm", { type: "audio/webm" });
-          const parsedSOAP = await api.aiScribe.transcribe(file, selectedPatientId);
+          const result = await api.ai.dictate(file);
           
-          if (parsedSOAP) {
-             setPresentingComplaint(prev => prev ? `${prev}\n\n[AI Dictated - Subjective]\n${parsedSOAP.subjective}` : parsedSOAP.subjective || '');
-             setClinicalAssessment(prev => prev ? `${prev}\n\n[AI Dictated - Objective/Assessment]\n${parsedSOAP.objective}\n\n${parsedSOAP.assessment}` : `${parsedSOAP.objective || ''}\n\n${parsedSOAP.assessment || ''}`);
-             
-             if(parsedSOAP.plan) {
-                 setInstructions(prev => prev ? `${prev}\n\n[AI Dictated - Plan]\n${parsedSOAP.plan}` : parsedSOAP.plan);
+          if (result) {
+             setPresentingComplaint(prev => prev ? `${prev}\n\n[AI Dictated]\n${result.subjective || result.transcript || ''}` : result.subjective || result.transcript || '');
+             if (result.objective || result.assessment) {
+               setClinicalAssessment(prev => {
+                 const parts = [];
+                 if (result.objective) parts.push(result.objective);
+                 if (result.assessment) parts.push(result.assessment);
+                 return prev ? `${prev}\n\n${parts.join('\n\n')}` : parts.join('\n\n');
+               });
+             }
+             if(result.plan) {
+                 setInstructions(prev => prev ? `${prev}\n\n[Plan]\n${result.plan}` : result.plan);
              }
           }
       } catch (err: any) {
           console.error("Transcription Failed:", err);
-          setError(err.message || 'Failed to transcribe audio.');
+          const msg = err.message || 'Failed to transcribe audio.';
+          setError(msg);
+          toast.error(msg);
       } finally {
           setIsTranscribing(false);
       }
@@ -241,7 +256,7 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = (action: 'DRAFT' | 'INVOICE' | 'RECEIPT' | 'SAVE') => {
     setError('');
 
     if (!selectedPatientId) {
@@ -254,7 +269,7 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
       return;
     }
 
-    if (!isEditMode && admitToWard && !selectedKennelId) {
+    if (admitToWard && !selectedKennelId) {
       setError('Select an available kennel before admitting to ward');
       return;
     }
@@ -272,17 +287,31 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
       return;
     }
 
+    if (effectiveAppointmentDate && effectiveAppointmentDate < todayStr) {
+      setError('Follow-up appointment date cannot be in the past');
+      return;
+    }
+
     // Filter out empty medication entries
     const validMedications = medications.filter(m => m.drug.trim());
 
     const treatmentData: any = {
       patientId: selectedPatientId,
+      clientId: selectedClientId,
       vetId: currentUser.id,
       chiefComplaint: presentingComplaint,
       diagnosis: finalDiagnosis,
-      notes: `Clinical Assessment: ${clinicalAssessment}\n\nProblems: ${problems.join(', ')}\n\nDifferential: ${differentialDiagnosis}\n\nInstructions: ${instructions}`,
+      clinicalAssessment: clinicalAssessment,
+      differentialDiagnosis: differentialDiagnosis,
+      problems: problems.filter(p => p.trim()),
+      vitals: vitals,
+      notes: `Clinical Assessment: ${clinicalAssessment}\n\nVitals: ${Object.entries(vitals).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ')}\n\nProblems: ${problems.join(', ')}\n\nDifferential: ${differentialDiagnosis}\n\nInstructions: ${instructions}`,
       totalCost: total,
+      otherCharges: otherCharges,
+      discount: discount,
       status: isMultiDay ? 'Ongoing' : 'Completed',
+      isMultiDay: isMultiDay,
+      treatmentDays: treatmentDays,
       endDate: isMultiDay ? new Date(Date.now() + treatmentDays * 24 * 60 * 60 * 1000).toISOString() : undefined,
       medications: validMedications.map(m => ({
         drug: m.drug,
@@ -298,28 +327,78 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
           procedureId: procId,
           cost: proc?.costClient || 0
         };
-      })
+      }),
+      followUp: followUp,
+      followUpDate: followUpDate,
+      admitToWard: admitToWard,
+      admissionReason: admissionReason,
+      estimatedCost: estimatedCost,
+      nextAppointmentDate: nextAppointmentDate,
+      nextAppointmentTime: nextAppointmentTime,
+      nextAppointmentProcedure: nextAppointmentProcedure,
+      nextAppointmentNotes: nextAppointmentNotes,
+      saveAsCopy: saveAsCopy
     };
 
-    if (!isEditMode) {
-      treatmentData.hospitalization = admitToWard ? {
-        kennelId: selectedKennelId,
-        patientId: selectedPatientId,
-        reason: admissionReason,
-        estimatedCost: estimatedCost
-      } : null;
+    treatmentData.labRequests = labRequests
+      .filter(request => request.testName.trim())
+      .map(request => ({
+        testName: request.testName.trim(),
+        sampleType: request.sampleType.trim(),
+        priority: request.priority,
+        notes: request.notes.trim()
+      }));
 
-      treatmentData.nextAppointment = shouldCreateFollowUpAppointment ? {
-        date: effectiveAppointmentDate,
-        time: nextAppointmentTime,
-        procedureId: nextAppointmentProcedure,
-        notes: nextAppointmentNotes || (followUp === 'yes' ? 'Follow-up visit scheduled from treatment sheet' : '')
-      } : null;
-    }
+    treatmentData.hospitalization = admitToWard ? {
+      kennelId: selectedKennelId,
+      patientId: selectedPatientId,
+      reason: admissionReason,
+      estimatedCost: estimatedCost
+    } : null;
 
-    onSave(treatmentData);
+    treatmentData.nextAppointment = shouldCreateFollowUpAppointment ? {
+      date: effectiveAppointmentDate,
+      time: nextAppointmentTime,
+      procedureId: nextAppointmentProcedure,
+      notes: nextAppointmentNotes || (followUp === 'yes' ? 'Follow-up visit scheduled from treatment sheet' : '')
+    } : null;
+
+    onSave(treatmentData, action);
     clearDraft();
   };
+
+  const ActionButtons = () => (
+    <div className="flex gap-3 flex-wrap">
+      <button 
+        onClick={() => handleSave('DRAFT')}
+        disabled={isSaving}
+        className="soft-btn px-4 py-2 text-slate-500 font-bold text-sm flex items-center gap-2 hover:bg-white disabled:opacity-50"
+      >
+        <Save className="w-4 h-4" /> Save Draft
+      </button>
+      <button
+        onClick={() => handleSave('SAVE')}
+        disabled={isSaving}
+        className="soft-btn px-4 py-2 text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-sm flex items-center gap-2 disabled:opacity-50"
+      >
+        <Save className="w-4 h-4" /> Save Treatment
+      </button>
+      <button
+        onClick={() => handleSave('INVOICE')}
+        disabled={isSaving}
+        className="soft-btn-primary bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2 text-white font-bold text-sm flex items-center gap-2 shadow-blue-200 disabled:opacity-50"
+      >
+        <FileText className="w-4 h-4" /> {isEditMode ? 'Update & Invoice' : 'Save & Invoice'}
+      </button>
+      <button
+        onClick={() => handleSave('RECEIPT')}
+        disabled={isSaving}
+        className="soft-btn-primary bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-white font-bold text-sm flex items-center gap-2 shadow-emerald-200 disabled:opacity-50"
+      >
+        <CreditCard className="w-4 h-4" /> {isEditMode ? 'Update & Receipt' : 'Save & Receipt'}
+      </button>
+    </div>
+  );
 
   const calculateAge = (dobString?: string) => {
     if (!dobString) return null;
@@ -337,8 +416,14 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
     return { years, months };
   };
 
-  const handleAISuggest = async () => {
+  const handleAISuggest = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
     setError('');
+
+    if (!selectedPatientId) {
+      setError('Please select a patient first — breed, species, and history are needed for accurate diagnosis suggestions');
+      return;
+    }
 
     if (!presentingComplaint && !clinicalAssessment) {
       setError('Please enter presenting complaint or clinical assessment first');
@@ -348,23 +433,82 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
     setIsAnalyzing(true);
     try {
       setAiSuggestions([]); // Clear previous
-      const suggestions = await suggestDiagnosis(presentingComplaint, clinicalAssessment);
+
+      const patientContext = selectedPatient ? {
+        name: selectedPatient.name,
+        species: selectedPatient.species,
+        breed: selectedPatient.breed,
+        gender: selectedPatient.gender,
+        weight: selectedPatient.weight,
+        vitals: vitals
+      } : null;
+
+      const suggestions = await suggestDiagnosis(presentingComplaint, clinicalAssessment, patientContext);
 
       if (suggestions.length === 0) {
         setError("AI could not generate suggestions. Please ensure details are sufficient.");
       } else {
         setAiSuggestions(suggestions);
       }
-    } catch (err) {
-      setError("Failed to connect to AI service.");
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to AI service.");
+      // If toast is available globally, we could use it here. Let's just scroll to top or alert.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const addLabRequest = (request?: Partial<{ testName: string; sampleType: string; priority: string; notes: string }>) => {
+    setLabRequests(prev => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        testName: request?.testName || '',
+        sampleType: request?.sampleType || '',
+        priority: request?.priority || 'Routine',
+        notes: request?.notes || ''
+      }
+    ]);
+  };
+
+  const handleAILabPlan = async () => {
+    setError('');
+
+    if (!selectedPatientId) {
+      setError('Please select a patient before asking AI for lab test suggestions');
+      return;
+    }
+
+    if (!presentingComplaint && !clinicalAssessment && problems.every(problem => !problem.trim())) {
+      setError('Enter the complaint, assessment, or problem list before asking AI for lab test suggestions');
+      return;
+    }
+
+    setIsSuggestingLabs(true);
+    try {
+      const result = await api.aiDiagnostic.suggestLabPlan({
+        patientId: selectedPatientId,
+        complaint: presentingComplaint,
+        clinicalSigns: clinicalAssessment,
+        vitals,
+        problems: problems.filter(problem => problem.trim())
+      });
+      setLabPlan(result);
+      if (!result?.tests?.length) {
+        toast.info('AI did not return specific lab tests for this case');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to suggest lab tests');
+    } finally {
+      setIsSuggestingLabs(false);
     }
   };
 
   // Follow-up scheduling is now handled atomically with treatment save.
 
   const patientAge = selectedPatient ? calculateAge(selectedPatient.dateOfBirth) : null;
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
@@ -380,17 +524,13 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button className="soft-btn px-4 py-2 text-slate-500 font-bold text-sm flex items-center gap-2 hover:bg-white">
-              <Save className="w-4 h-4" /> Save Draft
-            </button>
-            <button
-              onClick={handleSave}
-              className="soft-btn-primary bg-gradient-to-r from-blue-500 to-amber-600 px-6 py-2 text-white font-bold text-sm flex items-center gap-2 shadow-blue-200"
-            >
-              <FileText className="w-4 h-4" /> {isEditMode ? 'Save Changes' : 'Save & Invoice'}
-            </button>
-          </div>
+          <ActionButtons />
+          {isEditMode && (
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer select-none shrink-0">
+              <input type="checkbox" checked={saveAsCopy} onChange={(e) => setSaveAsCopy(e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+              Save as copy
+            </label>
+          )}
         </div>
       </div>
 
@@ -471,12 +611,12 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
                Treatment Plan
              </h2>
              <div className="space-y-4">
-                 <label className="flex items-center gap-3 cursor-pointer group">
-                   <div className={`w-10 h-6 flex items-center bg-slate-200 rounded-full p-1 duration-300 ease-in-out ${isMultiDay ? 'bg-amber-500' : ''}`}>
-                     <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ease-in-out ${isMultiDay ? 'translate-x-4' : ''}`} />
-                   </div>
-                   <span className="text-sm font-bold text-slate-700">Multi-Day Care Plan?</span>
-                 </label>
+                  <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsMultiDay(!isMultiDay)}>
+                    <div className={`w-10 h-6 flex items-center bg-slate-200 rounded-full p-1 duration-300 ease-in-out ${isMultiDay ? 'bg-amber-500' : ''}`}>
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ease-in-out ${isMultiDay ? 'translate-x-4' : ''}`} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700">Multi-Day Care Plan?</span>
+                  </div>
                  
                  {isMultiDay && (
                      <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl animate-fade-in space-y-3">
@@ -497,40 +637,6 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
              </div>
           </div>
 
-          <div className="soft-card p-6 border-t-4 border-slate-700 bg-slate-800 text-white shadow-xl shadow-slate-200">
-            <h2 className="font-bold mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-blue-400" />
-              Cost Summary
-            </h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-300">
-                <span>Procedures</span>
-                <span>{settings.currencySymbol}{procedureCost.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Other Charges</span>
-                <input
-                  type="number"
-                  value={otherCharges}
-                  onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
-                  className="w-20 bg-slate-700 border-none rounded px-2 py-1 text-right text-xs text-white focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex justify-between items-center text-slate-300 border-t border-slate-700 pt-2">
-                <span>Discount</span>
-                <input
-                  type="number"
-                  value={discount}
-                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-20 bg-slate-700 border-none rounded px-2 py-1 text-right text-xs text-rose-400 focus:ring-1 focus:ring-rose-500 font-bold"
-                />
-              </div>
-              <div className="border-t border-slate-700 pt-3 flex justify-between font-black text-2xl text-white tracking-tight">
-                <span>Total</span>
-                <span>{settings.currencySymbol}{total.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="xl:col-span-3 space-y-6">
@@ -605,6 +711,7 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="font-bold text-slate-700">Diagnosis</h2>
                   <button
+                    type="button"
                     onClick={handleAISuggest}
                     disabled={isAnalyzing}
                     className="px-3 py-1.5 rounded-lg bg-peach-50 text-peach-600 text-xs font-bold flex items-center gap-1 hover:bg-peach-100 transition disabled:opacity-50 disabled:cursor-wait"
@@ -638,6 +745,126 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
             </div>
           </div>
 
+          <div className="soft-card p-6 border-t-4 border-emerald-400">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div>
+                <h2 className="font-bold text-slate-700 flex items-center gap-2">
+                  <Microscope className="w-5 h-5 text-emerald-500" />
+                  Lab Requests
+                </h2>
+                <p className="text-xs font-medium text-slate-400 mt-1">Requested tests will appear in the Lab Hub as pending work.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAILabPlan}
+                  disabled={isSuggestingLabs}
+                  className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-2 hover:bg-emerald-100 transition disabled:opacity-50"
+                >
+                  {isSuggestingLabs ? <Loader className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  AI Lab Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addLabRequest()}
+                  className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold flex items-center gap-2 hover:bg-black transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  Request Test
+                </button>
+              </div>
+            </div>
+
+            {labPlan?.tests?.length > 0 && (
+              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 space-y-3">
+                {labPlan.tests.map((test: any, index: number) => (
+                  <div key={`${test.testName}-${index}`} className="flex items-start justify-between gap-3 rounded-xl bg-white p-3 border border-emerald-100">
+                    <div>
+                      <p className="text-sm font-black text-slate-800">{test.testName}</p>
+                      <p className="mt-1 text-xs font-bold text-emerald-700">{test.sampleType || 'Sample not specified'} · {test.priority || 'Routine'}</p>
+                      {test.reason && <p className="mt-2 text-xs font-medium text-slate-500">{test.reason}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addLabRequest({ testName: test.testName, sampleType: test.sampleType, priority: test.priority || 'Routine', notes: test.reason })}
+                      className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+                {labPlan.sampleNotes?.length > 0 && (
+                  <div className="text-xs font-medium text-emerald-800">
+                    {labPlan.sampleNotes.join(' ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {labRequests.length > 0 ? (
+              <div className="space-y-3">
+                {labRequests.map((request) => (
+                  <div key={request.id} className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr_140px_1.2fr_40px] gap-3 items-center rounded-2xl bg-slate-50 p-3">
+                    <input className="soft-input px-3 py-2 text-sm font-bold text-slate-700 bg-white" placeholder="Test name" value={request.testName} onChange={(e) => setLabRequests(prev => prev.map(item => item.id === request.id ? { ...item, testName: e.target.value } : item))} />
+                    <input className="soft-input px-3 py-2 text-sm font-medium text-slate-700 bg-white" placeholder="Sample type" value={request.sampleType} onChange={(e) => setLabRequests(prev => prev.map(item => item.id === request.id ? { ...item, sampleType: e.target.value } : item))} />
+                    <select className="soft-input px-3 py-2 text-sm font-bold text-slate-700 bg-white" value={request.priority} onChange={(e) => setLabRequests(prev => prev.map(item => item.id === request.id ? { ...item, priority: e.target.value } : item))}>
+                      <option>Routine</option>
+                      <option>Urgent</option>
+                      <option>Critical</option>
+                    </select>
+                    <input className="soft-input px-3 py-2 text-sm font-medium text-slate-700 bg-white" placeholder="Notes" value={request.notes} onChange={(e) => setLabRequests(prev => prev.map(item => item.id === request.id ? { ...item, notes: e.target.value } : item))} />
+                    <button type="button" onClick={() => setLabRequests(prev => prev.filter(item => item.id !== request.id))} className="text-rose-400 hover:text-rose-600">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-bold text-slate-400 text-center">
+                No lab tests requested yet.
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="soft-card p-6">
+              <h2 className="font-bold text-slate-700 mb-4">Add Procedure</h2>
+              <select className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" onChange={handleProcedureChange} value="">
+                <option value="" disabled>Select Procedure...</option>
+                {procedures.filter(p => p.status === 'Active').map(p => <option key={p.id} value={p.id}>{p.name} - {settings.currencySymbol}{p.costClient}</option>)}
+              </select>
+              {selectedProcedures.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedProcedures.map((pid) => {
+                    const proc = procedures.find(p => p.id === pid);
+                    return proc ? (
+                      <span key={pid} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold border border-blue-100">
+                        {proc.name}
+                        <button onClick={() => {
+                          setSelectedProcedures(prev => prev.filter(id => id !== pid));
+                          setProcedureCost(prev => Math.max(0, prev - proc.costClient));
+                        }} className="text-blue-400 hover:text-red-500 ml-1">&times;</button>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="soft-card p-6">
+              <h2 className="font-bold text-slate-700 mb-4">Follow Up</h2>
+              <div className="flex gap-6 mb-4">
+                <label className="flex items-center gap-2 font-bold text-slate-600 text-sm"><input type="radio" checked={followUp === 'yes'} onChange={() => setFollowUp('yes')} /> Yes</label>
+                <label className="flex items-center gap-2 font-bold text-slate-600 text-sm"><input type="radio" checked={followUp === 'no'} onChange={() => setFollowUp('no')} /> No</label>
+              </div>
+              <input type="date" min={todayStr} className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} disabled={followUp === 'no'} />
+              <p className="mt-3 text-xs font-medium text-slate-400">
+                {followUp === 'yes'
+                  ? 'This date is used for the appointment below if the appointment date field is left blank.'
+                  : 'Choose Yes if this case needs a scheduled return visit.'}
+              </p>
+            </div>
+          </div>
+
           <div className="soft-card p-6">
             <h2 className="font-bold text-slate-700 mb-4">Medications</h2>
             <div className="overflow-x-auto">
@@ -668,29 +895,6 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
             <button onClick={() => setMedications([...medications, { id: Date.now(), drug: '', dose: '', route: 'Oral', freq: 'SID', duration: '' }])} className="mt-4 text-sm font-bold text-blue-500 hover:text-blue-700 flex items-center gap-2"><Plus className="w-4 h-4" /> Add Medication</button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="soft-card p-6">
-              <h2 className="font-bold text-slate-700 mb-4">Add Procedure</h2>
-              <select className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" onChange={handleProcedureChange} value="">
-                <option value="" disabled>Select Procedure...</option>
-                {procedures.filter(p => p.status === 'Active').map(p => <option key={p.id} value={p.id}>{p.name} - {settings.currencySymbol}{p.costClient}</option>)}
-              </select>
-            </div>
-            <div className="soft-card p-6">
-              <h2 className="font-bold text-slate-700 mb-4">Follow Up</h2>
-              <div className="flex gap-6 mb-4">
-                <label className="flex items-center gap-2 font-bold text-slate-600 text-sm"><input type="radio" checked={followUp === 'yes'} onChange={() => setFollowUp('yes')} /> Yes</label>
-                <label className="flex items-center gap-2 font-bold text-slate-600 text-sm"><input type="radio" checked={followUp === 'no'} onChange={() => setFollowUp('no')} /> No</label>
-              </div>
-              <input type="date" className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} disabled={followUp === 'no'} />
-              <p className="mt-3 text-xs font-medium text-slate-400">
-                {followUp === 'yes'
-                  ? 'This date is used for the appointment below if the appointment date field is left blank.'
-                  : 'Choose Yes if this case needs a scheduled return visit.'}
-              </p>
-            </div>
-          </div>
-
           <div className="soft-card p-6 border-t-4 border-peach-400">
             <h2 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-peach-400" /> Schedule Next Appointment</h2>
             <p className="text-xs font-medium text-slate-400 mb-4">
@@ -700,13 +904,44 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
             </p>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="date" className="w-full soft-input px-4 py-3 font-bold text-slate-700" value={nextAppointmentDate} onChange={(e) => setNextAppointmentDate(e.target.value)} />
+                <input type="date" min={todayStr} className="w-full soft-input px-4 py-3 font-bold text-slate-700" value={nextAppointmentDate} onChange={(e) => setNextAppointmentDate(e.target.value)} />
                 <input type="time" className="w-full soft-input px-4 py-3 font-bold text-slate-700" value={nextAppointmentTime} onChange={(e) => setNextAppointmentTime(e.target.value)} />
               </div>
-              <select className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" value={nextAppointmentProcedure} onChange={(e) => setNextAppointmentProcedure(e.target.value)}>
-                <option value="">Select Follow-up Procedure...</option>
+              <select 
+                className="w-full soft-input px-4 py-3 font-bold text-slate-700 text-sm" 
+                value="" 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  const currentList = nextAppointmentProcedure ? nextAppointmentProcedure.split(',') : [];
+                  if (!currentList.includes(val)) {
+                    setNextAppointmentProcedure([...currentList, val].join(','));
+                  }
+                }}
+              >
+                <option value="" disabled>Select Follow-up Procedure...</option>
                 {procedures.filter(p => p.status === 'Active').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {nextAppointmentProcedure && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {nextAppointmentProcedure.split(',').filter(Boolean).map((pid) => {
+                    const proc = procedures.find(p => p.id === pid);
+                    return proc ? (
+                      <span key={pid} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-100 animate-fade-in">
+                        {proc.name}
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const remaining = nextAppointmentProcedure.split(',').filter(id => id !== pid && id.trim());
+                            setNextAppointmentProcedure(remaining.join(','));
+                          }} 
+                          className="text-amber-500 hover:text-red-500 ml-1"
+                        >&times;</button>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
               <input type="text" className="w-full soft-input px-4 py-3 text-sm font-medium text-slate-700" placeholder="Appointment notes (optional)" value={nextAppointmentNotes} onChange={(e) => setNextAppointmentNotes(e.target.value)} />
               {!nextAppointmentDate && followUpDate && followUp === 'yes' && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-bold text-amber-700 animate-fade-in">
@@ -714,7 +949,7 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
                   Using the follow-up date above unless you choose a different appointment date here
                 </div>
               )}
-              {(nextAppointmentDate || (followUp === 'yes' && followUpDate)) && nextAppointmentTime && nextAppointmentProcedure && !isEditMode && (
+              {(nextAppointmentDate || (followUp === 'yes' && followUpDate)) && nextAppointmentTime && nextAppointmentProcedure && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-peach-50 border border-peach-100 rounded-xl text-xs font-bold text-peach-600 animate-fade-in">
                   <CalendarDays className="w-4 h-4" />
                   Follow-up will be scheduled on save
@@ -726,19 +961,13 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
           <div className="soft-card p-6 border-t-4 border-rose-400">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold text-slate-700">Hospitalization / Admit to Ward</h2>
-              {!isEditMode && (
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={admitToWard} onChange={(e) => setAdmitToWard(e.target.checked)} />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
-                </label>
-              )}
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={admitToWard} onChange={(e) => setAdmitToWard(e.target.checked)} />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+              </label>
             </div>
 
-            {isEditMode ? (
-              <p className="text-xs font-medium text-slate-400">
-                Ward admission is only created from a new treatment save. Use the active hospitalization workflow to manage admitted patients.
-              </p>
-            ) : admitToWard && (
+            {admitToWard && (
               <div className="space-y-4 animate-fade-in mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <select 
@@ -770,6 +999,45 @@ export const NewTreatmentForm: React.FC<NewTreatmentFormProps> = ({
           <div className="soft-card p-6">
             <h2 className="font-bold text-slate-700 mb-4">Discharge Instructions</h2>
             <textarea className="w-full soft-input p-4 text-sm font-medium text-slate-700 min-h-[100px]" placeholder="Instructions for owner..." value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+          </div>
+
+          <div className="soft-card p-6 border-t-4 border-slate-700 bg-slate-800 text-white shadow-xl shadow-slate-200">
+            <h2 className="font-bold mb-4 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-400" />
+              Cost Summary
+            </h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between text-slate-300">
+                <span>Procedures</span>
+                <span>{settings.currencySymbol}{procedureCost.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Other Charges</span>
+                <input
+                  type="number"
+                  value={otherCharges}
+                  onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+                  className="w-20 bg-slate-700 border-none rounded px-2 py-1 text-right text-xs text-white focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-between items-center text-slate-300 border-t border-slate-700 pt-2">
+                <span>Discount</span>
+                <input
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                  className="w-20 bg-slate-700 border-none rounded px-2 py-1 text-right text-xs text-rose-400 focus:ring-1 focus:ring-rose-500 font-bold"
+                />
+              </div>
+              <div className="border-t border-slate-700 pt-3 flex justify-between font-black text-2xl text-white tracking-tight">
+                <span>Total</span>
+                <span>{settings.currencySymbol}{total.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-6 border-t border-slate-100">
+            <ActionButtons />
           </div>
         </div>
       </div>

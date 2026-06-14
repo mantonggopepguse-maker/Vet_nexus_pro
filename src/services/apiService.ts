@@ -878,6 +878,12 @@ export const api = {
             }).then(handleResponse),
         getHealthTrends: (patientId: string): Promise<any[]> =>
             fetch(`${API_URL}/ai-diagnostic/health-trends/${patientId}`, { headers: getAuthHeaders() }).then(handleResponse),
+        interpretLabResult: (data: { patientId: string; lab: any }): Promise<any> =>
+            fetch(`${API_URL}/ai-diagnostic/interpret-lab-result`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
     },
 
     aiImaging: {
@@ -1065,6 +1071,13 @@ export const api = {
         delete: (id: string): Promise<any> => fetch(`${API_URL}/labs/${id}`, {
             method: 'DELETE',
             headers: getAuthHeaders()
+        }).then(handleResponse),
+        getPending: (): Promise<any[]> => fetch(`${API_URL}/labs/clinic/pending`, { headers: getAuthHeaders() }).then(handleResponse),
+        getByClinic: (status?: string): Promise<any[]> => fetch(`${API_URL}/labs/clinic/all${status ? `?status=${status}` : ''}`, { headers: getAuthHeaders() }).then(handleResponse),
+        batchUpdate: (updates: any[]): Promise<any> => fetch(`${API_URL}/labs/batch`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ updates }),
         }).then(handleResponse),
     },
     // Generic helpers

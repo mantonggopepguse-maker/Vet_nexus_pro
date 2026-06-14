@@ -5,6 +5,7 @@ import multer from 'multer';
 
 const router = Router();
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+const GEMINI_MODEL = process.env.GEMINI_MODEL || process.env.GOOGLE_GEMINI_MODEL || "gemini-2.5-flash";
 
 // Startup verification - log once when module loads
 if (process.env.GEMINI_API_KEY) {
@@ -36,7 +37,7 @@ router.post('/scan-product', authenticate, async (req, res) => {
 
         const ai = new GoogleGenerativeAI(apiKey);
         const model = ai.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: GEMINI_MODEL,
             generationConfig: { responseMimeType: "application/json" }
         });
 
@@ -149,22 +150,33 @@ router.post('/suggest-diagnosis', authenticate, async (req, res) => {
             return res.status(500).json({ error: 'Server AI config missing' });
         }
 
-        const { complaint, assessment } = req.body;
+        const { complaint, assessment, patientContext } = req.body;
 
         console.log('🩺 AI Diagnosis Suggestion initiated');
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: GEMINI_MODEL,
             generationConfig: { responseMimeType: "application/json" }
         });
 
+        const patientInfo = patientContext
+            ? `Patient: ${patientContext.name || 'Unknown'}
+Species: ${patientContext.species || 'Unknown'}
+Breed: ${patientContext.breed || 'Unknown'}
+Gender: ${patientContext.gender || 'Unknown'}
+Weight: ${patientContext.weight || 'Unknown'}
+Vitals: ${JSON.stringify(patientContext.vitals || {})}`
+            : '';
+
         const prompt = `
-          Analyze veterinary case:
+          Analyze this veterinary case:
+          ${patientInfo ? `\n--- Patient Information ---\n${patientInfo}\n` : ''}
+          --- Clinical Details ---
           Complaint: ${complaint}
           Assessment: ${assessment}
           
-          Suggest 3 diagnoses with confidence %.
+          Based on the patient's species, breed, and clinical signs, suggest 3 most likely diagnoses with confidence %.
           Return JSON array: [{ "diagnosis": string, "confidence": number }]
         `;
 
@@ -247,7 +259,7 @@ router.post('/transcribe', authenticate, upload.single('audio'), async (req, res
         const genAI = new GoogleGenerativeAI(apiKey);
         // Note: Gemini 1.5 Flash supports audio inputs natively!
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash", 
+            model: GEMINI_MODEL, 
             generationConfig: { responseMimeType: "application/json" }
         });
 
@@ -258,12 +270,16 @@ router.post('/transcribe', authenticate, upload.single('audio'), async (req, res
 
         // Pass the audio buffer directly as inlineData
         const base64Audio = req.file.buffer.toString("base64");
+        let mimeType = req.file.mimetype;
+        if (mimeType === 'audio/octet-stream' || !mimeType) {
+            mimeType = 'audio/webm';
+        }
         
         // Wait for generation
         const result = await model.generateContent([
             {
                 inlineData: {
-                    mimeType: req.file.mimetype,
+                    mimeType: mimeType,
                     data: base64Audio
                 }
             },
