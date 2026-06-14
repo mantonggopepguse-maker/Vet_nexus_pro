@@ -21,10 +21,11 @@ import {
     ShieldCheck,
     Trash2,
     Upload,
-    User as UserIcon
+    User as UserIcon,
+    ListOrdered
 } from 'lucide-react';
 import { api } from '../../services/apiService';
-import { Pet, User } from '../../types';
+import { Pet, User, Department } from '../../types';
 
 interface ClientDetailsProps {
     clientId: string;
@@ -38,6 +39,15 @@ interface ClientDetailsProps {
 }
 
 type TabType = 'Financial' | 'Patients' | 'Communication' | 'Media' | 'Portal' | 'Notes';
+
+interface QueueModalState {
+    show: boolean;
+    patient: Pet | null;
+    departmentId: string;
+    reason: string;
+    priority: 'Normal' | 'Urgent' | 'Emergency';
+    departments: Department[];
+}
 
 const tabLabels: Record<TabType, string> = {
     Financial: 'Billing',
@@ -82,6 +92,9 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
     const [isSavingInteraction, setIsSavingInteraction] = useState(false);
     const [internalNotes, setInternalNotes] = useState(client?.internalNotes || '');
     const [isSavingNotes, setIsSavingNotes] = useState(false);
+    const [queueModal, setQueueModal] = useState<QueueModalState>({
+        show: false, patient: null, departmentId: '', reason: '', priority: 'Normal', departments: []
+    });
 
     useEffect(() => {
         loadClientDetails();
@@ -209,6 +222,7 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
     const files = client.media || [];
 
     return (
+        <>
         <div className="client-page-shell">
             <div className="flex items-center">
                 <button
@@ -414,8 +428,21 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-teal-600">
-                                            <ChevronRight className="w-5 h-5" />
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openQueueModal(patient);
+                                                }}
+                                                className="px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5"
+                                                style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.2)' }}
+                                                title="Send to waiting queue"
+                                            >
+                                                <ListOrdered className="w-3.5 h-3.5" /> Queue
+                                            </button>
+                                            <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-teal-600">
+                                                <ChevronRight className="w-5 h-5" />
+                                            </div>
                                         </div>
                                     </div>
                                 ))
@@ -653,5 +680,101 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
                 </div>
             )}
         </div>
+            {renderQueueModal()}
+        </>
     );
+
+    async function openQueueModal(patient: Pet) {
+        try {
+            const depts = await api.departments.getAll();
+            setQueueModal({ show: true, patient, departmentId: '', reason: '', priority: 'Normal', departments: depts });
+        } catch {
+            setQueueModal(m => ({ ...m, show: true, patient, departments: [] }));
+        }
+    }
+
+    async function handleSendToQueue() {
+        if (!queueModal.patient) return;
+        try {
+            await api.queue.add({
+                patientId: queueModal.patient.id,
+                clientId: clientId,
+                departmentId: queueModal.departmentId || undefined,
+                reason: queueModal.reason || undefined,
+                priority: queueModal.priority
+            });
+            toast.success(`${queueModal.patient.name} added to queue`);
+            setQueueModal({ show: false, patient: null, departmentId: '', reason: '', priority: 'Normal', departments: [] });
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to add to queue');
+        }
+    }
+
+    function renderQueueModal() {
+        if (!queueModal.show || !queueModal.patient) return null;
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md mx-4">
+                    <h3 className="text-xl font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <ListOrdered className="w-5 h-5 text-purple-600" /> Send to Queue
+                    </h3>
+                    <p className="text-sm text-slate-500 mb-6">Adding <strong>{queueModal.patient.name}</strong> ({queueModal.patient.species}) to the waiting queue</p>
+
+                    <label className="text-sm font-semibold text-slate-600 block mb-1.5">Department</label>
+                    <select
+                        value={queueModal.departmentId}
+                        onChange={e => setQueueModal(m => ({ ...m, departmentId: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm mb-4 bg-slate-50 focus:ring-2 focus:ring-purple-300 focus:border-purple-400 outline-none"
+                    >
+                        <option value="">General Clinic (Default)</option>
+                        {queueModal.departments.map(d => (
+                            <option key={d.id} value={d.id}>{d.name}{d.isDefault ? ' (Default)' : ''}</option>
+                        ))}
+                    </select>
+
+                    <label className="text-sm font-semibold text-slate-600 block mb-1.5">Visit Reason</label>
+                    <input
+                        type="text"
+                        placeholder="e.g., Annual checkup, vaccination..."
+                        value={queueModal.reason}
+                        onChange={e => setQueueModal(m => ({ ...m, reason: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm mb-4 bg-slate-50 focus:ring-2 focus:ring-purple-300 focus:border-purple-400 outline-none"
+                    />
+
+                    <label className="text-sm font-semibold text-slate-600 block mb-1.5">Priority</label>
+                    <div className="flex gap-2 mb-6">
+                        {(['Normal', 'Urgent', 'Emergency'] as const).map(p => (
+                            <button
+                                key={p}
+                                onClick={() => setQueueModal(m => ({ ...m, priority: p }))}
+                                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
+                                    queueModal.priority === p
+                                        ? p === 'Emergency' ? 'border-red-400 bg-red-50 text-red-600'
+                                        : p === 'Urgent' ? 'border-amber-400 bg-amber-50 text-amber-600'
+                                        : 'border-teal-400 bg-teal-50 text-teal-600'
+                                        : 'border-slate-200 text-slate-400'
+                                }`}
+                            >
+                                {p}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setQueueModal({ show: false, patient: null, departmentId: '', reason: '', priority: 'Normal', departments: [] })}
+                            className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-500 font-semibold hover:bg-slate-50 transition-all"
+                        >Cancel</button>
+                        <button
+                            onClick={handleSendToQueue}
+                            className="flex-1 py-3 rounded-2xl bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            <ListOrdered className="w-4 h-4" /> Send to Queue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 };
+

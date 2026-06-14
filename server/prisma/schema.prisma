@@ -65,6 +65,8 @@ model Clinic {
   surgeries               Surgery[]
   narcoticLogs            NarcoticLog[]
   referrals               Referral[]
+  departments             Department[]
+  queueEntries            QueueEntry[]
 
   @@map("clinics")
 }
@@ -99,6 +101,7 @@ model User {
   anesthesias                  Surgery[]                     @relation("AnesthetistRelation")
   narcoticLogs                 NarcoticLog[]
   doctorInChargeHospitalizations Hospitalization[]             @relation("DoctorInChargeRelation")
+  queueAssignments             QueueEntry[]
   clinic                       Clinic?                       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@index([clinicId])
@@ -188,6 +191,7 @@ model Client {
   patients                Patient[]
   reminders               Reminder[]
   sales                   Sale[]
+  queueEntries            QueueEntry[]
 
   @@unique([clinicId, clientCode])
   @@index([clinicId])
@@ -228,6 +232,7 @@ model Patient {
   surgeries        Surgery[]
   narcoticLogs     NarcoticLog[]
   aiConversations  AIConversation[]
+  queueEntries     QueueEntry[]
 
   @@index([ownerId])
   @@index([ownerId, createdAt])
@@ -1107,4 +1112,51 @@ model VitalSign {
 
   @@index([patientId])
   @@map("vital_signs")
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  clinicId    String
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clinic       Clinic       @relation(fields: [clinicId], references: [id])
+  queueEntries QueueEntry[]
+
+  @@unique([clinicId, name])
+  @@map("departments")
+}
+
+model QueueEntry {
+  id            String    @id @default(cuid())
+  clinicId      String
+  patientId     String
+  clientId      String?
+  departmentId  String
+  assignedToId  String?
+  queueNumber   Int
+  status        String    @default("Waiting")
+  priority      String    @default("Normal")
+  reason        String?
+  notes         String?
+  queueDate     DateTime  @default(now())
+  calledAt      DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clinic      Clinic      @relation(fields: [clinicId], references: [id])
+  patient     Patient     @relation(fields: [patientId], references: [id])
+  client      Client?     @relation(fields: [clientId], references: [id])
+  department  Department  @relation(fields: [departmentId], references: [id])
+  assignedTo  User?       @relation(fields: [assignedToId], references: [id])
+
+  @@index([clinicId, queueDate, status])
+  @@index([departmentId, status])
+  @@map("queue_entries")
 }

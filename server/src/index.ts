@@ -66,6 +66,8 @@ import triageRoutes from './routes/triage.js';
 import surgeryRoutes from './routes/surgery.js';
 import narcoticsRoutes from './routes/narcotics.js';
 import referralRoutes from './routes/referrals.js';
+import departmentsRouter from './routes/departments.js';
+import queueRouter from './routes/queue.js';
 import financialRoutes from './routes/financials.js';
 import firebaseRoutes from './routes/firebase.js';
 import { initializeSubscriptionPlans } from './services/subscriptionService.js';
@@ -180,6 +182,8 @@ app.use('/api/triage', triageRoutes);
 app.use('/api/surgeries', surgeryRoutes);
 app.use('/api/narcotics', narcoticsRoutes);
 app.use('/api/referrals', referralRoutes);
+app.use('/api/departments', departmentsRouter);
+app.use('/api/queue', queueRouter);
 app.use('/api/financials', financialRoutes);
 app.use('/api/firebase', firebaseRoutes);
 

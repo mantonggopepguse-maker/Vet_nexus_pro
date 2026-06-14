@@ -1095,6 +1095,76 @@ export const api = {
             body: JSON.stringify({ updates }),
         }).then(handleResponse),
     },
+
+    // Departments
+    departments: {
+        getAll: (): Promise<any[]> =>
+            fetch(`${API_URL}/departments`, { headers: getAuthHeaders() }).then(handleResponse),
+        create: (data: { name: string; description?: string; sortOrder?: number }): Promise<any> =>
+            fetch(`${API_URL}/departments`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        update: (id: string, data: { name?: string; description?: string; sortOrder?: number; isActive?: boolean }): Promise<any> =>
+            fetch(`${API_URL}/departments/${id}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        delete: (id: string): Promise<any> =>
+            fetch(`${API_URL}/departments/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            }).then(handleResponse),
+        ensureDefault: (): Promise<any> =>
+            fetch(`${API_URL}/departments/ensure-default`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            }).then(handleResponse),
+    },
+
+    // Patient Queue
+    queue: {
+        getToday: (filters?: { status?: string; departmentId?: string }): Promise<any[]> => {
+            const params = new URLSearchParams();
+            if (filters?.status) params.set('status', filters.status);
+            if (filters?.departmentId) params.set('departmentId', filters.departmentId);
+            const qs = params.toString() ? `?${params.toString()}` : '';
+            return fetch(`${API_URL}/queue/today${qs}`, { headers: getAuthHeaders() }).then(handleResponse);
+        },
+        add: (data: { patientId: string; clientId?: string; departmentId?: string; reason?: string; priority?: string }): Promise<any> =>
+            fetch(`${API_URL}/queue`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        call: (id: string): Promise<any> =>
+            fetch(`${API_URL}/queue/${id}/call`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+            }).then(handleResponse),
+        complete: (id: string): Promise<any> =>
+            fetch(`${API_URL}/queue/${id}/complete`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+            }).then(handleResponse),
+        cancel: (id: string, type: 'Cancelled' | 'NoShow' = 'Cancelled'): Promise<any> =>
+            fetch(`${API_URL}/queue/${id}/cancel`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ type }),
+            }).then(handleResponse),
+        transfer: (id: string, departmentId: string): Promise<any> =>
+            fetch(`${API_URL}/queue/${id}/transfer`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ departmentId }),
+            }).then(handleResponse),
+        getStats: (): Promise<any> =>
+            fetch(`${API_URL}/queue/stats`, { headers: getAuthHeaders() }).then(handleResponse),
+    },
+
     // Generic helpers
     get: (url: string): Promise<any> =>
         fetch(`${API_URL}${url}`, { headers: getAuthHeaders() }).then(handleResponse),

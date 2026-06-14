@@ -34,6 +34,7 @@ import { NarcoticsLockbox } from './components/views/NarcoticsLockbox';
 import { ClinicalCalculators } from './components/views/ClinicalCalculators';
 import { LabHub } from './components/views/LabHub';
 import { Hospitalization } from './components/views/Hospitalization';
+import PatientQueue from './components/views/PatientQueue';
 import { PremiumGate } from './components/shared/PremiumGate';
 import { SubscriptionCallback } from './components/views/SubscriptionCallback';
 import { InventoryItem, ViewState, AppView, ClinicSettings, Client, Pet, Procedure, User, LogEntry, Appointment as AppointmentType, Expense } from './types';
@@ -1189,6 +1190,17 @@ const App: React.FC = () => {
       case 'HOSPITALIZATION':
         return (
           <Hospitalization settings={settings} currentUser={currentUser} />
+        );
+      case 'PATIENT_QUEUE':
+        return (
+          <PatientQueue
+            currentUser={currentUser}
+            settings={settings}
+            onViewPatient={(pid: string) => {
+              setSelectedPatientId(pid);
+              setCurrentView('PATIENT_DETAILS');
+            }}
+          />
         );
       case 'SHIFT_TIMETABLE':
         return (

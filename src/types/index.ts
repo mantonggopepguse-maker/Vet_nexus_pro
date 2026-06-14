@@ -367,7 +367,7 @@ export interface Expense {
 }
 
 export type ViewState = 'LIST' | 'ADD_ITEM' | 'EDIT_ITEM' | 'ADD_CLIENT' | 'ADD_PATIENT' | 'ADD_PROCEDURE' | 'NEW_TREATMENT' | 'ADD_STAFF' | 'EDIT_STAFF' | 'EDIT_CLIENT' | 'EDIT_PATIENT';
-export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'HOSPITALIZATION' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK';
+export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'HOSPITALIZATION' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK' | 'PATIENT_QUEUE';
 export type SuperAdminView = 'CLINICS' | 'INVITES';
 export type Patient = Pet;
 
@@ -599,4 +599,39 @@ export interface Treatment {
   treatmentNotes?: TreatmentNote[];
   vet?: { id: string; name: string };
   patient?: { id: string; name: string; owner?: { id: string; firstName: string; lastName: string } };
+}
+
+export interface Department {
+  id: string;
+  clinicId: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface QueueEntry {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  clientId?: string;
+  departmentId: string;
+  assignedToId?: string;
+  queueNumber: number;
+  status: 'Waiting' | 'InProgress' | 'Completed' | 'Cancelled' | 'NoShow';
+  priority: 'Normal' | 'Urgent' | 'Emergency';
+  reason?: string;
+  notes?: string;
+  queueDate: string;
+  calledAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  patient: { id: string; name: string; species: string; breed?: string; gender?: string; age?: number; weight?: number };
+  client?: { id: string; firstName: string; lastName: string; phone: string };
+  department: { id: string; name: string };
+  assignedTo?: { id: string; name: string };
 }

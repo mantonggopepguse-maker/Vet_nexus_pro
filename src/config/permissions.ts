@@ -5,6 +5,7 @@ export const PERMISSIONS: Partial<Record<AppView, UserRole[]>> = {
     // --- Operations ---
     DASHBOARD: ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],
     APPOINTMENTS: ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],
+    PATIENT_QUEUE: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],
     TRIAGE: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
     ICU_BOARD: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
     HOSPITALIZATION: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],

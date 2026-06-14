@@ -28,7 +28,8 @@ import {
   Microscope,
   Wifi,
   WifiOff,
-  Activity
+  Activity,
+  ListOrdered
 } from 'lucide-react';
 import { AppView, User, ClinicSettings } from '../../types';
 import { CommandPalette } from './CommandPalette';
@@ -166,6 +167,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
         items: [
           { id: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
           { id: 'APPOINTMENTS', label: 'Appointments', icon: CalendarDays },
+          { id: 'PATIENT_QUEUE', label: 'Queue', icon: ListOrdered },
         ]
       },
       {
