@@ -808,6 +808,25 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
                                                         ))}
                                                     </div>
                                                 </div>
+
+                                                <div className="space-y-4">
+                                                    <p className="text-[9px] text-slate-400 font-medium tracking-normal text-center mb-4">Invoice Paper Size</p>
+                                                    <div className="grid grid-cols-3 gap-4">
+                                                        {['A4', '80mm', '58mm'].map(size => (
+                                                            <button
+                                                                key={size}
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({ ...prev, paperWidth: size as 'A4' | '80mm' | '58mm' }));
+                                                                    toast.success(`Paper width set to ${size}`);
+                                                                }}
+                                                                className={`py-5 rounded-2xl border transition-all font-medium text-[10px] tracking-normal ${(formData.paperWidth || 'A4') === size ? 'bg-slate-900 text-white shadow-2xl ring-4 ring-slate-900/10' : 'bg-white border-slate-100 text-slate-400 hover:border-[#14B8A6]/30 shadow-sm'}`}
+                                                            >
+                                                                {size === 'A4' ? 'A4' : size === '80mm' ? '80 mm' : '58 mm'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-[8px] text-slate-400 text-center mt-2">Affects invoice/receipt print & PDF layout</p>
+                                                </div>
                                             </div>
                                     </div>
                                 </div>

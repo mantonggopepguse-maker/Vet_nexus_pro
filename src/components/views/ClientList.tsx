@@ -4,11 +4,12 @@ import { Client } from '../../types';
 
 interface ClientListProps {
     clients: Client[];
+    isLoading?: boolean;
     onAddClient: () => void;
     onViewClient: (id: string) => void;
 }
 
-export const ClientList: React.FC<ClientListProps> = ({ clients, onAddClient, onViewClient }) => {
+export const ClientList: React.FC<ClientListProps> = ({ clients, isLoading, onAddClient, onViewClient }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredClients = clients.filter((client) =>
@@ -55,51 +56,70 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, onAddClient, on
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-                {filteredClients.map((client) => (
-                    <div
-                        key={client.id}
-                        onClick={() => onViewClient(client.id)}
-                        className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5"
-                    >
-                        <div className="flex items-start gap-4 min-w-0">
-                            <div className="w-14 h-14 rounded-[1.2rem] bg-teal-50 text-teal-600 border border-teal-100 flex items-center justify-center font-bold text-lg shrink-0">
-                                {client.firstName[0]}{client.lastName[0]}
-                            </div>
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="text-lg font-bold text-slate-800 truncate">{client.firstName} {client.lastName}</h3>
-                                    {client.clientCode && <span className="client-badge">{client.clientCode}</span>}
-                                    {client.tags?.slice(0, 2).map((tag) => (
-                                        <span key={tag} className="client-badge bg-teal-50 text-teal-700 border-teal-100">{tag}</span>
-                                    ))}
+                {isLoading ? (
+                    <>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <div key={i} className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5 animate-pulse">
+                                <div className="flex items-start gap-4 min-w-0 flex-1">
+                                    <div className="w-14 h-14 rounded-[1.2rem] bg-slate-200 shrink-0"></div>
+                                    <div className="min-w-0 flex-1 space-y-3">
+                                        <div className="h-5 bg-slate-200 rounded w-48"></div>
+                                        <div className="h-4 bg-slate-200 rounded w-32"></div>
+                                        <div className="h-4 bg-slate-200 rounded w-56"></div>
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500 mt-3">
-                                    <span className="flex items-center gap-2"><Phone className="w-4 h-4 text-teal-500" /> {client.phone}</span>
-                                    <span className="flex items-center gap-2 truncate"><Mail className="w-4 h-4 text-teal-500" /> {client.email || 'No email added'}</span>
+                            </div>
+                        ))}
+                    </>
+                ) : (
+                    <>
+                        {filteredClients.map((client) => (
+                            <div
+                                key={client.id}
+                                onClick={() => onViewClient(client.id)}
+                                className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5"
+                            >
+                                <div className="flex items-start gap-4 min-w-0">
+                                    <div className="w-14 h-14 rounded-[1.2rem] bg-teal-50 text-teal-600 border border-teal-100 flex items-center justify-center font-bold text-lg shrink-0">
+                                        {client.firstName[0]}{client.lastName[0]}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-lg font-bold text-slate-800 truncate">{client.firstName} {client.lastName}</h3>
+                                            {client.clientCode && <span className="client-badge">{client.clientCode}</span>}
+                                            {client.tags?.slice(0, 2).map((tag) => (
+                                                <span key={tag} className="client-badge bg-teal-50 text-teal-700 border-teal-100">{tag}</span>
+                                            ))}
+                                        </div>
+                                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500 mt-3">
+                                            <span className="flex items-center gap-2"><Phone className="w-4 h-4 text-teal-500" /> {client.phone}</span>
+                                            <span className="flex items-center gap-2 truncate"><Mail className="w-4 h-4 text-teal-500" /> {client.email || 'No email added'}</span>
+                                        </div>
+                                        <p className="text-sm text-slate-400 mt-3 truncate">{client.address || 'No address added yet'}</p>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-slate-400 mt-3 truncate">{client.address || 'No address added yet'}</p>
-                            </div>
-                        </div>
 
-                        <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
-                            <div className="text-sm text-slate-400">{client.patients?.length || 0} pets</div>
-                            <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
-                                <ChevronRight className="w-5 h-5" />
+                                <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+                                    <div className="text-sm text-slate-400">{client.patients?.length || 0} pets</div>
+                                    <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+                                        <ChevronRight className="w-5 h-5" />
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                ))}
+                        ))}
 
-                {filteredClients.length === 0 && (
-                    <div className="client-panel p-16 text-center flex flex-col items-center gap-4">
-                        <div className="w-20 h-20 rounded-[1.8rem] bg-slate-50 border border-slate-200 flex items-center justify-center">
-                            <User className="w-9 h-9 text-slate-300" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-800">No clients found</h3>
-                            <p className="text-slate-500 mt-2">Try a different search or add a new client.</p>
-                        </div>
-                    </div>
+                        {!isLoading && filteredClients.length === 0 && (
+                            <div className="client-panel p-16 text-center flex flex-col items-center gap-4">
+                                <div className="w-20 h-20 rounded-[1.8rem] bg-slate-50 border border-slate-200 flex items-center justify-center">
+                                    <User className="w-9 h-9 text-slate-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-800">No clients found</h3>
+                                    <p className="text-slate-500 mt-2">Try a different search or add a new client.</p>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

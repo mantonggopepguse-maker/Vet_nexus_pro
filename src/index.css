@@ -1284,4 +1284,82 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* ═══ Thermal Printer Mode (80mm / 58mm) ═══ */
+  .thermal-print .print-area-inner {
+    padding: 3mm 4mm !important;
+  }
+
+  .thermal-print .thermal-header {
+    margin-bottom: 3mm !important;
+  }
+  .thermal-print .thermal-header h1 {
+    font-size: 13px !important;
+    margin-bottom: 1px !important;
+  }
+  .thermal-print .thermal-header p {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+
+  .thermal-print .thermal-stack > * {
+    flex-direction: column !important;
+  }
+  .thermal-print .thermal-stack {
+    flex-direction: column !important;
+    margin-bottom: 3mm !important;
+    gap: 2mm !important;
+  }
+
+  .thermal-print .thermal-title {
+    font-size: 12px !important;
+  }
+  .thermal-print .thermal-title-sm {
+    font-size: 9px !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .thermal-print .thermal-footer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 2mm !important;
+    padding-top: 2mm !important;
+  }
+
+  .thermal-print table th,
+  .thermal-print table td {
+    font-size: 8px !important;
+    padding: 1mm 0 !important;
+  }
+
+  .thermal-print table {
+    min-width: 0 !important;
+  }
+
+  .thermal-print .thermal-table-label {
+    font-size: 7px !important;
+  }
+
+  .thermal-print .thermal-greeting {
+    margin-top: 4mm !important;
+    padding-top: 2mm !important;
+  }
+  .thermal-print .thermal-greeting p {
+    font-size: 8px !important;
+  }
+
+  .thermal-print .thermal-total {
+    font-size: 13px !important;
+  }
+  .thermal-print .thermal-amount {
+    font-size: 10px !important;
+  }
+
+  .thermal-print .thermal-badge {
+    font-size: 7px !important;
+    padding: 0.5mm 1.5mm !important;
+  }
+
+  .thermal-print .thermal-mb {
+    margin-bottom: 2mm !important;
+  }
 }

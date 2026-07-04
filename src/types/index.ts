@@ -92,6 +92,7 @@ export interface ClinicSettings {
   country: string;
   language: string;
   practiceType?: string;
+  paperWidth?: 'A4' | '80mm' | '58mm';
   useShiftTimetable: boolean;
   googleDriveRefreshToken?: string;
   subscription?: {

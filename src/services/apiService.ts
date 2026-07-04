@@ -23,6 +23,14 @@ const handleResponse = async (response: Response) => {
     return body;
 };
 
+async function cachedGet<T>(resource: string, params: string | undefined, fetcher: () => Promise<T>, ttl?: number): Promise<T> {
+    const cached = await cacheManager.get<T>(resource, params);
+    if (cached) return cached;
+    const data = await fetcher();
+    cacheManager.set(resource, data, params, ttl);
+    return data;
+}
+
 export const api = {
     auth: {
         login: (credentials: any) =>
@@ -131,7 +139,7 @@ export const api = {
     inventory: {
         getAll: async (page: number = 1, limit: number = 50, search?: string): Promise<InventoryItem[]> => {
             const cacheKey = `page=${page}&limit=${limit}&search=${search || ''}`;
-            const cached = cacheManager.get<InventoryItem[]>('inventory', cacheKey);
+            const cached = await cacheManager.get<InventoryItem[]>('inventory', cacheKey);
             if (cached) return cached;
 
             const queryParams = new URLSearchParams({
@@ -145,7 +153,9 @@ export const api = {
             return data;
         },
         getOne: (id: string): Promise<InventoryItem> =>
-            fetch(`${API_URL}/inventory/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<InventoryItem>('inventory', `id=${id}`, () =>
+                fetch(`${API_URL}/inventory/${id}`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         getStats: (): Promise<{ total: number, lowStock: number }> =>
             fetch(`${API_URL}/inventory/stats`, { headers: getAuthHeaders() }).then(handleResponse),
         create: (item: Omit<InventoryItem, 'id'>): Promise<InventoryItem> =>
@@ -189,7 +199,7 @@ export const api = {
     clients: {
         getAll: async (page: number = 1, limit: number = 100): Promise<Client[]> => {
             const cacheKey = `page=${page}&limit=${limit}`;
-            const cached = cacheManager.get<Client[]>('clients', cacheKey);
+            const cached = await cacheManager.get<Client[]>('clients', cacheKey);
             if (cached) return cached;
 
             const data = await fetch(`${API_URL}/clients?page=${page}&limit=${limit}`, { headers: getAuthHeaders() }).then(handleResponse);
@@ -197,7 +207,9 @@ export const api = {
             return data;
         },
         getOne: (id: string): Promise<any> =>
-            fetch(`${API_URL}/clients/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<any>('clients', `id=${id}`, () =>
+                fetch(`${API_URL}/clients/${id}`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         create: (client: Omit<Client, 'id' | 'registrationDate'>): Promise<Client> =>
             fetch(`${API_URL}/clients`, {
                 method: 'POST',
@@ -270,7 +282,7 @@ export const api = {
     patients: {
         getAll: async (page: number = 1, limit: number = 100): Promise<Pet[]> => {
             const cacheKey = `page=${page}&limit=${limit}`;
-            const cached = cacheManager.get<Pet[]>('patients', cacheKey);
+            const cached = await cacheManager.get<Pet[]>('patients', cacheKey);
             if (cached) return cached;
 
             const data = await fetch(`${API_URL}/patients?page=${page}&limit=${limit}`, { headers: getAuthHeaders() }).then(handleResponse);
@@ -278,7 +290,9 @@ export const api = {
             return data;
         },
         getOne: (id: string): Promise<any> =>
-            fetch(`${API_URL}/patients/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<any>('patients', `id=${id}`, () =>
+                fetch(`${API_URL}/patients/${id}`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         create: (pet: Omit<Pet, 'id'>): Promise<Pet> =>
             fetch(`${API_URL}/patients`, {
                 method: 'POST',
@@ -310,7 +324,9 @@ export const api = {
     // Procedures
     procedures: {
         getAll: (): Promise<Procedure[]> =>
-            fetch(`${API_URL}/procedures`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<Procedure[]>('procedures', 'all', () =>
+                fetch(`${API_URL}/procedures`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         save: (procedure: Procedure): Promise<Procedure> => {
             const isUpdate = !!procedure.id && !String(procedure.id).startsWith('new-');
             console.log('Procedure save:', { id: procedure.id, isUpdate, method: isUpdate ? 'PUT' : 'POST' });
@@ -367,7 +383,7 @@ export const api = {
     // Sales
     sales: {
         getAll: async (page: number = 1, limit: number = 10000): Promise<any[]> => {
-            const cached = cacheManager.get<any[]>('sales', `page=${page}&limit=${limit}`);
+            const cached = await cacheManager.get<any[]>('sales', `page=${page}&limit=${limit}`);
             if (cached) return cached;
 
             const data = await fetch(`${API_URL}/sales?page=${page}&limit=${limit}`, { headers: getAuthHeaders() }).then(handleResponse);
@@ -375,7 +391,9 @@ export const api = {
             return data;
         },
         getOne: (id: string): Promise<any> =>
-            fetch(`${API_URL}/sales/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<any>('sales', `id=${id}`, () =>
+                fetch(`${API_URL}/sales/${id}`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         create: (data: any): Promise<any> =>
             fetch(`${API_URL}/sales`, {
                 method: 'POST',
@@ -423,7 +441,7 @@ export const api = {
     // Treatments
     treatments: {
         getAll: async (): Promise<any[]> => {
-            const cached = cacheManager.get<any[]>('treatments', 'all');
+            const cached = await cacheManager.get<any[]>('treatments', 'all');
             if (cached) return cached;
 
             const data = await fetch(`${API_URL}/treatments`, { headers: getAuthHeaders() }).then(handleResponse);
@@ -431,7 +449,9 @@ export const api = {
             return data;
         },
         getOne: (id: string): Promise<any> =>
-            fetch(`${API_URL}/treatments/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
+            cachedGet<any>('treatments', `id=${id}`, () =>
+                fetch(`${API_URL}/treatments/${id}`, { headers: getAuthHeaders() }).then(handleResponse)
+            ),
         create: (treatment: any): Promise<any> =>
             fetch(`${API_URL}/treatments`, {
                 method: 'POST',
@@ -478,7 +498,10 @@ export const api = {
             if (filters?.clientId) params.append('clientId', filters.clientId);
             if (filters?.staffId) params.append('staffId', filters.staffId);
             const queryString = params.toString();
-            return fetch(`${API_URL}/appointments${queryString ? `?${queryString}` : ''}`, { headers: getAuthHeaders() }).then(handleResponse);
+            const cacheKey = queryString || 'all';
+            return cachedGet<Appointment[]>('appointments', cacheKey, () =>
+                fetch(`${API_URL}/appointments${queryString ? `?${queryString}` : ''}`, { headers: getAuthHeaders() }).then(handleResponse)
+            );
         },
         getOne: (id: string): Promise<Appointment> =>
             fetch(`${API_URL}/appointments/${id}`, { headers: getAuthHeaders() }).then(handleResponse),
@@ -510,11 +533,11 @@ export const api = {
     // Dashboard
     dashboard: {
         getStats: async (): Promise<any> => {
-            const cached = cacheManager.get<any>('dashboard', 'stats');
+            const cached = await cacheManager.get<any>('dashboard', 'stats');
             if (cached) return cached;
 
             const data = await fetch(`${API_URL}/dashboard`, { headers: getAuthHeaders() }).then(handleResponse);
-            cacheManager.set('dashboard', data, 'stats', 60 * 1000); // 60 second TTL for dashboard
+            cacheManager.set('dashboard', data, 'stats', 5 * 60 * 1000);
             return data;
         },
     },
@@ -1061,6 +1084,16 @@ export const api = {
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ signedBy }),
             }).then(handleResponse),
+        getAvailableProcedures: (): Promise<any> =>
+            fetch(`${API_URL}/portal/appointments/available-procedures`, { headers: getAuthHeaders() }).then(handleResponse),
+        requestAppointment: (data: { patientId: string; procedureId: string; date: string; time: string; notes?: string }): Promise<any> =>
+            fetch(`${API_URL}/portal/appointments/request`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        getInvoices: (): Promise<any> =>
+            fetch(`${API_URL}/portal/invoices`, { headers: getAuthHeaders() }).then(handleResponse),
     },
     consent: {
         create: (data: any): Promise<any> =>
@@ -1192,7 +1225,7 @@ export const api = {
             headers: getAuthHeaders()
         }).then(handleResponse),
     getCache: <T>(resource: string, params?: string): T | null => {
-        return cacheManager.get<T>(resource, params);
+        return cacheManager.getSync<T>(resource, params);
     },
     setCache: <T>(resource: string, data: T, params?: string, ttl?: number): void => {
         cacheManager.set(resource, data, params, ttl);

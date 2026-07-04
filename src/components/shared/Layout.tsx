@@ -29,7 +29,9 @@ import {
   Wifi,
   WifiOff,
   Activity,
-  ListOrdered
+  ListOrdered,
+  MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 import { AppView, User, ClinicSettings } from '../../types';
 import { CommandPalette } from './CommandPalette';
@@ -38,6 +40,7 @@ import { Logo } from './Logo';
 import { api } from '../../services/apiService';
 import { toast } from 'sonner';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { syncService } from '../../services/syncService';
 
 interface LayoutProps {
   children: ReactNode;
@@ -148,13 +151,39 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
   const [isQuickAccessOpen, setIsQuickAccessOpen] = React.useState(false);
 
   const isOnline = useOnlineStatus();
+  const [pendingSyncCount, setPendingSyncCount] = React.useState(0);
+
+  React.useEffect(() => {
+    let mounted = true;
+    const checkPending = async () => {
+      const count = await syncService.getPendingCount();
+      if (mounted) setPendingSyncCount(count);
+    };
+    checkPending();
+    const interval = setInterval(checkPending, 30000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
 
   const ConnectivityBanner = () => {
-    if (isOnline) return null;
+    if (isOnline && pendingSyncCount === 0) return null;
     return (
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-500/95 backdrop-blur-md text-white text-center py-2 px-4 flex items-center justify-center gap-2 text-sm font-semibold shadow-lg">
-        <WifiOff className="w-4 h-4" />
-        <span>You are offline. Some features may be limited until connection is restored.</span>
+      <div className={`fixed top-0 left-0 right-0 z-[60] ${isOnline ? 'bg-emerald-500/90' : 'bg-amber-500/95'} backdrop-blur-md text-white text-center py-2 px-4 flex items-center justify-center gap-2 text-sm font-semibold shadow-lg`}>
+        {isOnline ? (
+          <>
+            <RefreshCw className="w-4 h-4" />
+            <span>Syncing {pendingSyncCount} pending record{pendingSyncCount !== 1 ? 's' : ''}...</span>
+          </>
+        ) : (
+          <>
+            <WifiOff className="w-4 h-4" />
+            <span>You are offline. Some features may be limited until connection is restored.</span>
+            {pendingSyncCount > 0 && (
+              <span className="ml-2 bg-white/20 rounded-full px-2.5 py-0.5 text-xs font-bold">
+                {pendingSyncCount} pending
+              </span>
+            )}
+          </>
+        )}
       </div>
     );
   };
@@ -214,6 +243,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
         label: 'Admin',
         items: [
           { id: 'AI_HUB', label: 'AI help', icon: Sparkles, badgeCount: portalUnreadCount },
+          { id: 'PORTAL_INBOX', label: 'Portal Inbox', icon: MessageSquare, badgeCount: portalUnreadCount },
           { id: 'STAFF', label: 'Staff', icon: UserRound },
           { id: 'REMINDERS', label: 'Reminders', icon: Bell },
           { id: 'AUDIT_LOG', label: 'Audit Log', icon: ShieldCheck },

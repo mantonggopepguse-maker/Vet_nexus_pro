@@ -25,6 +25,7 @@ export const PERMISSIONS: Partial<Record<AppView, UserRole[]>> = {
 
     // --- Pharmacy & Lab ---
     INVENTORY: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],
+    LAB_HUB: ['Admin', 'Veterinarian', 'Lab Scientist', 'Lab Tech', 'Vet Tech', 'SUPER_ADMIN'],
     NARCOTICS_LOCKBOX: ['Admin', 'Veterinarian', 'SUPER_ADMIN'],
     CLINICAL_CALCULATORS: ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
 

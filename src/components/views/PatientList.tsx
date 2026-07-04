@@ -5,6 +5,7 @@ import { Client, Pet } from '../../types';
 interface PatientListProps {
     patients: Pet[];
     clients: Client[];
+    isLoading?: boolean;
     onAddPatient: () => void;
     onViewPatient: (id: string) => void;
 }
@@ -23,7 +24,7 @@ const getPetToneClass = (breed?: string, species?: string) => {
     return 'bg-sky-50 text-sky-600 border-sky-100';
 };
 
-export const PatientList: React.FC<PatientListProps> = ({ patients, clients, onAddPatient, onViewPatient }) => {
+export const PatientList: React.FC<PatientListProps> = ({ patients, clients, isLoading, onAddPatient, onViewPatient }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredPatients = patients.filter((pet) =>
@@ -69,53 +70,72 @@ export const PatientList: React.FC<PatientListProps> = ({ patients, clients, onA
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-                {filteredPatients.map((pet) => (
-                    <div
-                        key={pet.id}
-                        onClick={() => onViewPatient(pet.id)}
-                        className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5"
-                    >
-                        <div className="flex items-start gap-4 min-w-0">
-                            <div className={`w-14 h-14 rounded-[1.2rem] border flex items-center justify-center shrink-0 ${getPetToneClass(pet.breed, pet.species)}`}>
-                                <PawPrint className="w-6 h-6" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="text-lg font-bold text-slate-800 truncate">{pet.name}</h3>
-                                    <span className="client-badge">{pet.species}</span>
-                                    {pet.breed && <span className="client-badge">{pet.breed}</span>}
-                                </div>
-                                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500 mt-3">
-                                    <span>{pet.gender}</span>
-                                    <span>{pet.age} years</span>
-                                    <span>{pet.weight} kg</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-slate-400 mt-3">
-                                    <User className="w-4 h-4 text-teal-500" />
-                                    <span>{getOwnerName(pet, clients)}</span>
+                {isLoading ? (
+                    <>
+                        {[1, 2, 3, 4, 5].map((i) => (
+                            <div key={i} className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5 animate-pulse">
+                                <div className="flex items-start gap-4 min-w-0 flex-1">
+                                    <div className="w-14 h-14 rounded-[1.2rem] bg-slate-200 shrink-0"></div>
+                                    <div className="min-w-0 flex-1 space-y-3">
+                                        <div className="h-5 bg-slate-200 rounded w-48"></div>
+                                        <div className="h-4 bg-slate-200 rounded w-32"></div>
+                                        <div className="h-4 bg-slate-200 rounded w-56"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ))}
+                    </>
+                ) : (
+                    <>
+                        {filteredPatients.map((pet) => (
+                            <div
+                                key={pet.id}
+                                onClick={() => onViewPatient(pet.id)}
+                                className="client-list-card flex flex-col md:flex-row md:items-center justify-between gap-5"
+                            >
+                                <div className="flex items-start gap-4 min-w-0">
+                                    <div className={`w-14 h-14 rounded-[1.2rem] border flex items-center justify-center shrink-0 ${getPetToneClass(pet.breed, pet.species)}`}>
+                                        <PawPrint className="w-6 h-6" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-lg font-bold text-slate-800 truncate">{pet.name}</h3>
+                                            <span className="client-badge">{pet.species}</span>
+                                            {pet.breed && <span className="client-badge">{pet.breed}</span>}
+                                        </div>
+                                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500 mt-3">
+                                            <span>{pet.gender}</span>
+                                            <span>{pet.age} years</span>
+                                            <span>{pet.weight} kg</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-slate-400 mt-3">
+                                            <User className="w-4 h-4 text-teal-500" />
+                                            <span>{getOwnerName(pet, clients)}</span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
-                            <div className="text-sm text-slate-400">{pet.status || 'Active'}</div>
-                            <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
-                                <ChevronRight className="w-5 h-5" />
+                                <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+                                    <div className="text-sm text-slate-400">{pet.status || 'Active'}</div>
+                                    <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+                                        <ChevronRight className="w-5 h-5" />
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                ))}
+                        ))}
 
-                {filteredPatients.length === 0 && (
-                    <div className="client-panel p-16 text-center flex flex-col items-center gap-4">
-                        <div className="w-20 h-20 rounded-[1.8rem] bg-slate-50 border border-slate-200 flex items-center justify-center">
-                            <PawPrint className="w-9 h-9 text-slate-300" />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-800">No patients found</h3>
-                            <p className="text-slate-500 mt-2">Try another search or add a new patient.</p>
-                        </div>
-                    </div>
+                        {!isLoading && filteredPatients.length === 0 && (
+                            <div className="client-panel p-16 text-center flex flex-col items-center gap-4">
+                                <div className="w-20 h-20 rounded-[1.8rem] bg-slate-50 border border-slate-200 flex items-center justify-center">
+                                    <PawPrint className="w-9 h-9 text-slate-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-800">No patients found</h3>
+                                    <p className="text-slate-500 mt-2">Try another search or add a new patient.</p>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

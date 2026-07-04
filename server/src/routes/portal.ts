@@ -825,4 +825,133 @@ router.post('/drive/export', authenticate, clientOnly, upload.single('file'), as
     }
 });
 
+// ── Portal Available Procedures ──────────────────────────────────────────────
+router.get('/appointments/available-procedures', authenticate, clientOnly, async (req: AuthRequest, res) => {
+    try {
+        const clinicId = req.user?.clinicId as string;
+        const procedures = await prisma.procedure.findMany({
+            where: { clinicId, status: 'Active' },
+            select: { id: true, name: true, description: true, category: true, costClient: true },
+            orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        });
+        res.json({ procedures });
+    } catch (error) {
+        console.error('Portal procedures error:', error);
+        res.status(500).json({ error: 'Failed to load procedures' });
+    }
+});
+
+// ── Portal Appointment Request ───────────────────────────────────────────────
+router.post('/appointments/request', authenticate, clientOnly, async (req: AuthRequest, res) => {
+    try {
+        const clinicId = req.user?.clinicId as string;
+        const clientId = req.user?.id as string;
+        const { patientId, procedureId, date, time, notes } = req.body;
+
+        if (!patientId || !procedureId || !date || !time) {
+            return res.status(400).json({ error: 'Patient, procedure, date, and time are required' });
+        }
+
+        // Verify patient belongs to client
+        const patient = await prisma.patient.findFirst({
+            where: { id: patientId, ownerId: clientId },
+            select: { id: true },
+        });
+        if (!patient) return res.status(403).json({ error: 'Patient access denied' });
+
+        // Verify procedure exists
+        const procedure = await prisma.procedure.findFirst({
+            where: { id: procedureId, clinicId, status: 'Active' },
+            select: { id: true },
+        });
+        if (!procedure) return res.status(404).json({ error: 'Procedure not found' });
+
+        const appointment = await prisma.appointment.create({
+            data: {
+                clinicId,
+                clientId,
+                patientId,
+                procedureId,
+                date,
+                time,
+                notes: notes || null,
+                status: 'Pending',
+            },
+            include: {
+                patient: { select: { id: true, name: true, species: true } },
+                procedure: { select: { id: true, name: true, costClient: true } },
+            },
+        });
+
+        res.status(201).json(appointment);
+    } catch (error) {
+        console.error('Portal appointment request error:', error);
+        res.status(500).json({ error: 'Failed to request appointment' });
+    }
+});
+
+// ── Portal Invoices ──────────────────────────────────────────────────────────
+router.get('/invoices', authenticate, clientOnly, async (req: AuthRequest, res) => {
+    try {
+        const clinicId = req.user?.clinicId as string;
+        const clientId = req.user?.id as string;
+
+        const invoices = await prisma.sale.findMany({
+            where: { clinicId, clientId },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+                items: {
+                    include: {
+                        item: { select: { id: true, name: true, sku: true, retailPrice: true } },
+                        procedure: { select: { id: true, name: true, costClient: true } },
+                    },
+                },
+                payments: {
+                    orderBy: { date: 'desc' },
+                },
+            },
+        });
+
+        res.json({
+            invoices: invoices.map((inv: any) => ({
+                id: inv.id,
+                invoiceNumber: inv.invoiceNumber,
+                type: inv.type,
+                status: inv.status,
+                subtotal: inv.subtotal,
+                discount: inv.discount,
+                tax: inv.tax,
+                total: inv.total,
+                amountPaid: inv.amountPaid,
+                balanceDue: inv.balanceDue,
+                paymentMethod: inv.paymentMethod,
+                createdAt: inv.createdAt,
+                items: (inv.items || []).map((item: any) => ({
+                    id: item.id,
+                    name: item.name || item.item?.name || item.procedure?.name || 'Item',
+                    quantity: item.quantity,
+                    pricePerUnit: item.pricePerUnit,
+                    item: item.item ? { id: item.item.id, name: item.item.name } : null,
+                    procedure: item.procedure ? { id: item.procedure.id, name: item.procedure.name } : null,
+                })),
+                payments: (inv.payments || []).map((p: any) => ({
+                    id: p.id,
+                    amount: p.amount,
+                    method: p.method,
+                    date: p.date,
+                })),
+            })),
+            summary: {
+                totalInvoices: invoices.length,
+                totalOwed: invoices.reduce((sum, inv) => sum + inv.balanceDue, 0),
+                totalPaid: invoices.reduce((sum, inv) => sum + inv.amountPaid, 0),
+            },
+        });
+    } catch (error) {
+        console.error('Portal invoices error:', error);
+        res.status(500).json({ error: 'Failed to load invoices' });
+    }
+});
+
 export default router;

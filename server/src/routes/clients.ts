@@ -366,7 +366,43 @@ router.post('/', authenticate, checkResourceLimit('clients'), async (req: AuthRe
                 await logAudit(req.user.id, 'CLIENTS', 'CREATE', `Created client ${clientCode}: ${client.firstName} ${client.lastName}`, req.user.clinicId || undefined, req.user.name);
             }
 
-            return res.status(201).json(client);
+            // Auto-generate portal credentials if requested during registration
+            let portalCredentials: { temporaryPassword: string } | null = null;
+            if (req.body.enablePortal && client.email) {
+                try {
+                    const normalizedEmail = client.email.toLowerCase().trim();
+                    await assertPortalEmailUniqueness(normalizedEmail, client.id);
+                    const temporaryPassword = generateTemporaryPassword();
+                    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+                    await prisma.client.update({
+                        where: { id: client.id },
+                        data: {
+                            password: hashedPassword,
+                            isPortalEnabled: true,
+                            portalPasswordMustChange: true,
+                        },
+                    });
+                    portalCredentials = { temporaryPassword };
+
+                    // Send credentials email (best-effort)
+                    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+                    sendPortalCredentialsEmail({
+                        to: normalizedEmail,
+                        clientName: `${client.firstName} ${client.lastName}`,
+                        clinicName: '',
+                        email: normalizedEmail,
+                        temporaryPassword,
+                        loginUrl: `${appUrl}/portal`,
+                    }).catch(() => { /* best effort */ });
+
+                    await logAudit(req.user!.id, 'CLIENTS', 'PORTAL_CREDENTIALS', `Auto-generated portal credentials for ${client.firstName} ${client.lastName} during registration`, req.user!.clinicId || undefined, req.user!.name);
+                } catch (portalError) {
+                    console.error('Auto-portal setup failed (non-blocking):', portalError);
+                    // Non-blocking: client is still created successfully
+                }
+            }
+
+            return res.status(201).json({ ...client, portalCredentials });
         } catch (error: any) {
             // Handle unique constraint conflict for clientCode (P2002)
             if (error?.code === 'P2002' && error?.meta?.target?.includes('clientCode')) {

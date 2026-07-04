@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, User, Phone, Mail, MapPin, Loader2, AlertCircle, Shield, Heart, Tag, MessageCircle, Users, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, User, Phone, Mail, MapPin, Loader2, AlertCircle, Shield, Heart, Tag, MessageCircle, Users, ChevronDown, Smartphone } from 'lucide-react';
 import { Client } from '../../types';
 import { api } from '../../services/apiService';
 
@@ -36,6 +36,7 @@ export const AddClientForm: React.FC<AddClientFormProps> = ({ onBack, onSave, is
   const [error, setError] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState<{ exists: boolean; client?: any } | null>(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [enablePortal, setEnablePortal] = useState(false);
   const isEdit = !!initialData;
 
   const validateEmail = (email: string) => {
@@ -92,7 +93,7 @@ export const AddClientForm: React.FC<AddClientFormProps> = ({ onBack, onSave, is
       return;
     }
 
-    onSave({ ...formData, isPortalEnabled: initialData?.isPortalEnabled || false });
+    onSave({ ...formData, isPortalEnabled: initialData?.isPortalEnabled || false, enablePortal } as any);
   };
 
   const sectionTitleClass = "text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2";
@@ -342,6 +343,35 @@ export const AddClientForm: React.FC<AddClientFormProps> = ({ onBack, onSave, is
             />
           </div>
         </div>
+
+        {/* Section 5: Portal Access */}
+        {!isEdit && (
+          <div className="soft-card p-5 md:p-8 space-y-6 border-t-4 border-blue-400">
+            <p className={sectionTitleClass}>
+              <Smartphone className="w-3.5 h-3.5 text-blue-400" /> Client Portal Access
+            </p>
+            <div className="flex items-start gap-4">
+              <button
+                type="button"
+                onClick={() => setEnablePortal(!enablePortal)}
+                className={`mt-0.5 w-12 h-7 rounded-full flex items-center transition-all duration-300 ${enablePortal ? 'bg-blue-600 justify-end' : 'bg-slate-200 justify-start'}`}
+              >
+                <span className={`w-5 h-5 rounded-full bg-white shadow-md mx-1 transition-all`} />
+              </button>
+              <div>
+                <p className="text-sm font-bold text-slate-700">Enable portal access for this client</p>
+                <p className="text-xs font-medium text-slate-500 mt-0.5">
+                  {formData.email
+                    ? 'A temporary password will be generated and the client can log in at /portal.'
+                    : 'An email address is required to enable portal access.'}
+                </p>
+                {enablePortal && !formData.email && (
+                  <p className="text-xs font-bold text-amber-600 mt-1">⚠ Please add an email address above to enable portal access.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Submit */}
         <div className="pt-2 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">

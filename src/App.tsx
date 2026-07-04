@@ -35,6 +35,7 @@ import { ClinicalCalculators } from './components/views/ClinicalCalculators';
 import { LabHub } from './components/views/LabHub';
 import { Hospitalization } from './components/views/Hospitalization';
 import PatientQueue from './components/views/PatientQueue';
+import { PortalInbox } from './components/views/PortalInbox';
 import { PremiumGate } from './components/shared/PremiumGate';
 import { SubscriptionCallback } from './components/views/SubscriptionCallback';
 import { InventoryItem, ViewState, AppView, ClinicSettings, Client, Pet, Procedure, User, LogEntry, Appointment as AppointmentType, Expense } from './types';
@@ -113,6 +114,7 @@ const App: React.FC = () => {
   const [hasMoreExpenses, setHasMoreExpenses] = useState(true);
   const [loadingMoreExpenses, setLoadingMoreExpenses] = useState(false);
   const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   const [aiContext, setAiContext] = useState<{ tab?: 'SCRIBE' | 'CLIENT' | 'OPERATIONS' | 'LOGS'; patientId?: string }>({});
 
@@ -253,6 +255,8 @@ const App: React.FC = () => {
         setSettings(settingsData);
         sessionStorage.setItem(cacheKey, JSON.stringify(settingsData));
       }
+      // Pre-fetch dashboard stats so they're cached before Dashboard mounts
+      api.dashboard.getStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to load settings:", error);
       // If we already have settings from cache or user profile, don't revert to DEFAULT_SETTINGS
@@ -278,7 +282,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || !currentUser || currentUser.isSuperAdmin) return;
 
+    let mounted = true;
     const loadViewData = async () => {
+      const needsClients = clients.length === 0 && ['CLIENTS', 'CLIENT_DETAILS', 'PATIENTS', 'LAB_HUB', 'TREATMENTS', 'APPOINTMENTS', 'POS'].includes(currentView);
+      const needsPatients = patients.length === 0 && ['PATIENTS', 'LAB_HUB', 'TREATMENTS'].includes(currentView);
+      const needsInventory = inventory.length === 0 && ['INVENTORY', 'POS'].includes(currentView);
+      const needsProcedures = procedures.length === 0 && ['TREATMENTS', 'PROCEDURES', 'APPOINTMENTS'].includes(currentView);
+      const needsStaff = users.length === 0 && currentView === 'STAFF';
+      const needsLogs = logs.length === 0 && currentView === 'AUDIT_LOG';
+      const needsExpenses = expenses.length === 0 && currentView === 'EXPENSES';
+      const willFetch = needsClients || needsPatients || needsInventory || needsProcedures || needsStaff || needsLogs || needsExpenses;
+
+      if (willFetch) setIsLoadingData(true);
+
       try {
         switch (currentView) {
           case 'DASHBOARD':
@@ -291,16 +307,20 @@ const App: React.FC = () => {
               if (inventory.length === 0) {
                 const limit = currentView === 'POS' ? 1000 : 50;
                 promises.push(api.inventory.getAll(1, limit).then(data => {
-                  setInventory(data);
-                  setHasMoreInventory(data.length === limit);
+                  if (mounted) {
+                    setInventory(data);
+                    setHasMoreInventory(data.length === limit);
+                  }
                 }));
                 promises.push(api.inventory.getStats().then(data => {
-                  setInventoryStats(data);
+                  if (mounted) setInventoryStats(data);
                 }));
               }
               if (currentView === 'POS' && clients.length === 0) promises.push(api.clients.getAll(1, 1000).then(data => {
-                setClients(data);
-                setHasMoreClients(data.length === 1000); // Increased limit for POS search
+                if (mounted) {
+                  setClients(data);
+                  setHasMoreClients(data.length === 1000);
+                }
               }));
               await Promise.all(promises);
             }
@@ -309,8 +329,10 @@ const App: React.FC = () => {
           case 'CLIENT_DETAILS':
             if (clients.length === 0) {
               const data = await api.clients.getAll(1, 50);
-              setClients(data);
-              setHasMoreClients(data.length === 50);
+              if (mounted) {
+                setClients(data);
+                setHasMoreClients(data.length === 50);
+              }
             }
             break;
           case 'LAB_HUB':
@@ -320,12 +342,16 @@ const App: React.FC = () => {
             if (clientEmpty || patientEmpty) {
               const promises = [];
               if (patientEmpty) promises.push(api.patients.getAll(1, 50).then(data => {
-                setPatients(data);
-                setHasMorePatients(data.length === 50);
+                if (mounted) {
+                  setPatients(data);
+                  setHasMorePatients(data.length === 50);
+                }
               }));
               if (clientEmpty) promises.push(api.clients.getAll(1, 50).then(data => {
-                setClients(data);
-                setHasMoreClients(data.length === 50);
+                if (mounted) {
+                  setClients(data);
+                  setHasMoreClients(data.length === 50);
+                }
               }));
               await Promise.all(promises);
             }
@@ -340,43 +366,51 @@ const App: React.FC = () => {
                 setProcedures(JSON.parse(cachedProcs));
               }
               const data = await api.procedures.getAll();
-              setProcedures(data);
-              sessionStorage.setItem(procCacheKey, JSON.stringify(data));
+              if (mounted) {
+                setProcedures(data);
+                sessionStorage.setItem(procCacheKey, JSON.stringify(data));
+              }
             }
             if (currentView === 'TREATMENTS' || currentView === 'APPOINTMENTS') {
               if (clients.length === 0) {
                 const data = await api.clients.getAll(1, 50);
-                setClients(data);
-                setHasMoreClients(data.length === 50);
+                if (mounted) {
+                  setClients(data);
+                  setHasMoreClients(data.length === 50);
+                }
               }
             }
             if (currentView === 'TREATMENTS' && patients.length === 0) {
               const data = await api.patients.getAll(1, 50);
-              setPatients(data);
-              setHasMorePatients(data.length === 50);
+              if (mounted) {
+                setPatients(data);
+                setHasMorePatients(data.length === 50);
+              }
             }
             if (currentView === 'APPOINTMENTS' && appointments.length === 0) {
               const data = await api.appointments.getAll();
-              setAppointments(data);
+              if (mounted) setAppointments(data);
             }
             break;
           case 'STAFF':
             if (users.length === 0) {
               const data = await api.staff.getAll().catch(() => []);
-              setUsers(data);
+              if (mounted) setUsers(data);
             }
             break;
           case 'AUDIT_LOG':
             if (logs.length === 0) {
               const data = await api.audit.getAll().catch(() => []);
-              setLogs(data);
+              if (mounted) setLogs(data);
             }
             break;
           case 'EXPENSES':
             if (expenses.length === 0) {
               const data = await api.expenses.getAll(1, 50);
-              setExpenses(data);
-              setHasMoreExpenses(data.length === 50);
+              if (mounted) {
+                setExpenses(data);
+                setHasMoreExpenses(data.length === 50);
+              }
             }
             break;
           case 'HOSPITALIZATION':
@@ -384,10 +418,13 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.error(`Failed to load data for view ${currentView}:`, error);
+      } finally {
+        if (mounted && willFetch) setIsLoadingData(false);
       }
     };
 
     loadViewData();
+    return () => { mounted = false; };
   }, [currentView, isAuthenticated]);
 
   const handleLoadMoreInventory = async () => {
@@ -566,7 +603,14 @@ const App: React.FC = () => {
       const created = await api.clients.create(newClient);
       setClients(prev => [created, ...prev]);
       setViewState('LIST');
-      toast.success("Client added");
+      if ((created as any).portalCredentials?.temporaryPassword) {
+        toast.success(
+          `Client created with portal access! Temporary password: ${(created as any).portalCredentials.temporaryPassword}`,
+          { duration: 15000 }
+        );
+      } else {
+        toast.success("Client added");
+      }
     } catch (error) {
       toast.error("Failed to create client");
     } finally {
@@ -919,6 +963,7 @@ const App: React.FC = () => {
             <div className="h-full flex flex-col">
               <InventoryList
                 items={inventory}
+                isLoading={isLoadingData}
                 settings={settings}
                 totalLowStock={inventoryStats.lowStock}
                 onAddItem={() => setViewState('ADD_ITEM')}
@@ -962,6 +1007,7 @@ const App: React.FC = () => {
             <div className="h-full flex flex-col">
               <ClientList
                 clients={clients}
+                isLoading={isLoadingData}
                 onAddClient={() => setViewState('ADD_CLIENT')}
                 onViewClient={(id) => {
                   setSelectedClientId(id);
@@ -1008,6 +1054,7 @@ const App: React.FC = () => {
               <PatientList
                 patients={patients}
                 clients={clients}
+                isLoading={isLoadingData}
                 onAddPatient={() => setViewState('ADD_PATIENT')}
                 onViewPatient={(id) => {
                   setSelectedPatientId(id);
@@ -1257,6 +1304,8 @@ const App: React.FC = () => {
             <ClinicalCalculators />
           </PremiumGate>
         );
+      case 'PORTAL_INBOX':
+        return <PortalInbox onBack={() => setCurrentView('DASHBOARD')} />;
       case 'SUBSCRIPTION_CALLBACK':
         return null;
 

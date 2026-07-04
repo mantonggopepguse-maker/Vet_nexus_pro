@@ -21,6 +21,14 @@ import {
     Square,
     Lock,
     Settings,
+    CalendarPlus,
+    Receipt,
+    CreditCard,
+    CheckCircle,
+    XCircle,
+    AlertCircle,
+    ChevronDown,
+    Plus,
 } from 'lucide-react';
 import { api } from '../../services/apiService';
 import { toast } from 'sonner';
@@ -45,7 +53,7 @@ interface PortalDashboardProps {
 export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initialClient, onLogout, onViewPatient }) => {
     const [client, setClient] = useState<any>(initialClient);
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'MESSAGES' | 'REMINDERS' | 'SHOP' | 'ORDERS' | 'SETTINGS'>('OVERVIEW');
+    const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'APPOINTMENTS' | 'MESSAGES' | 'BILLING' | 'REMINDERS' | 'SHOP' | 'ORDERS' | 'SETTINGS'>('OVERVIEW');
     const [conversations, setConversations] = useState<any[]>([]);
     const [shopItems, setShopItems] = useState<any[]>([]);
     const [orders, setOrders] = useState<any[]>([]);
@@ -67,6 +75,17 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
     const unreadCountRef = useRef(0);
     const inboxLoadedRef = useRef(false);
 
+    // Appointment booking state
+    const [availableProcedures, setAvailableProcedures] = useState<any[]>([]);
+    const [showBookingModal, setShowBookingModal] = useState(false);
+    const [bookingForm, setBookingForm] = useState({ patientId: '', procedureId: '', date: '', time: '', notes: '' });
+    const [bookingSubmitting, setBookingSubmitting] = useState(false);
+
+    // Billing state
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [invoiceSummary, setInvoiceSummary] = useState<any>(null);
+    const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+
     useEffect(() => {
         loadDashboard();
         loadInbox();
@@ -81,6 +100,12 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
         }
         if (activeTab === 'ORDERS' && orders.length === 0) {
             loadOrders();
+        }
+        if (activeTab === 'APPOINTMENTS' && availableProcedures.length === 0) {
+            loadProcedures();
+        }
+        if (activeTab === 'BILLING' && invoices.length === 0) {
+            loadInvoices();
         }
     }, [activeTab, selectedConversationId]);
 
@@ -142,6 +167,44 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
             setOrders(response.orders || []);
         } catch (error) {
             console.error('Failed to load portal orders', error);
+        }
+    };
+
+    const loadProcedures = async () => {
+        try {
+            const response = await api.portal.getAvailableProcedures();
+            setAvailableProcedures(response.procedures || []);
+        } catch (error) {
+            console.error('Failed to load procedures', error);
+        }
+    };
+
+    const loadInvoices = async () => {
+        try {
+            const response = await api.portal.getInvoices();
+            setInvoices(response.invoices || []);
+            setInvoiceSummary(response.summary || null);
+        } catch (error) {
+            console.error('Failed to load invoices', error);
+        }
+    };
+
+    const handleRequestAppointment = async () => {
+        if (!bookingForm.patientId || !bookingForm.procedureId || !bookingForm.date || !bookingForm.time) {
+            toast.error('Please fill in all required fields.');
+            return;
+        }
+        setBookingSubmitting(true);
+        try {
+            await api.portal.requestAppointment(bookingForm);
+            toast.success('Appointment request sent to your clinic!');
+            setShowBookingModal(false);
+            setBookingForm({ patientId: '', procedureId: '', date: '', time: '', notes: '' });
+            await loadDashboard();
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to request appointment');
+        } finally {
+            setBookingSubmitting(false);
         }
     };
 
@@ -415,7 +478,9 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
                         <div className="rounded-[32px] border border-slate-100 bg-white p-3 shadow-sm space-y-2">
                             {[
                                 { id: 'OVERVIEW', label: 'Overview', icon: Dog },
+                                { id: 'APPOINTMENTS', label: 'Appointments', icon: Calendar, badge: (client.appointments || []).length },
                                 { id: 'MESSAGES', label: 'Messages', icon: MessageSquare, badge: conversations.reduce((sum, conversation) => sum + (conversation.unreadForClient || 0), 0) },
+                                { id: 'BILLING', label: 'Billing', icon: Receipt, badge: invoices.filter((inv: any) => inv.balanceDue > 0).length },
                                 { id: 'REMINDERS', label: 'Reminders', icon: Bell },
                                 { id: 'SHOP', label: 'Shop', icon: ShoppingCart, badge: shopItems.length },
                                 { id: 'ORDERS', label: 'Orders', icon: ClipboardList, badge: orders.length },
@@ -446,7 +511,9 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
                         <div className="lg:hidden flex flex-wrap gap-3">
                             {[
                                 { id: 'OVERVIEW', label: 'Overview' },
+                                { id: 'APPOINTMENTS', label: 'Appointments' },
                                 { id: 'MESSAGES', label: `Messages${conversations.some((conversation) => conversation.unreadForClient) ? ` (${conversations.reduce((sum, conversation) => sum + (conversation.unreadForClient || 0), 0)})` : ''}` },
+                                { id: 'BILLING', label: 'Billing' },
                                 { id: 'REMINDERS', label: 'Reminders & Forms' },
                                 { id: 'SHOP', label: 'Shop' },
                                 { id: 'ORDERS', label: 'Orders' },
@@ -609,6 +676,167 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
                                 </button>
                             </section>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'APPOINTMENTS' && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Appointments</h2>
+                                <p className="mt-1 text-sm font-medium text-slate-500">View upcoming appointments and request new ones.</p>
+                            </div>
+                            <button
+                                onClick={() => { loadProcedures(); setShowBookingModal(true); }}
+                                className="flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-100"
+                            >
+                                <CalendarPlus className="w-4 h-4" /> Request Appointment
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {(client.appointments || []).length === 0 && (
+                                <div className="col-span-full rounded-[32px] border border-dashed border-slate-200 bg-white p-12 text-center">
+                                    <Calendar className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+                                    <p className="text-lg font-black text-slate-500">No upcoming appointments</p>
+                                    <p className="mt-2 text-sm font-medium text-slate-400">Request a new appointment and your clinic will confirm it.</p>
+                                </div>
+                            )}
+                            {(client.appointments || []).map((appointment: any) => (
+                                <div key={appointment.id} className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex items-start justify-between gap-3 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                                                <Calendar className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">{appointment.procedure?.name || 'Appointment'}</h3>
+                                                <p className="text-xs font-bold text-slate-400 mt-0.5">{appointment.patient?.name || 'Pet'}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                                            appointment.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-700'
+                                            : appointment.status === 'Pending' ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {appointment.status}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="rounded-xl bg-slate-50 p-3 flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 text-slate-400" />
+                                            <span className="text-sm font-bold text-slate-700">{appointment.date}</span>
+                                        </div>
+                                        <div className="rounded-xl bg-slate-50 p-3 flex items-center gap-2">
+                                            <Clock className="w-4 h-4 text-slate-400" />
+                                            <span className="text-sm font-bold text-slate-700">{appointment.time}</span>
+                                        </div>
+                                    </div>
+                                    {appointment.notes && (
+                                        <p className="mt-3 text-sm font-medium text-slate-500 bg-slate-50 rounded-xl p-3">{appointment.notes}</p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Booking Modal */}
+                        {showBookingModal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                                <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-lg mx-4">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                                                <CalendarPlus className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-800">Request Appointment</h3>
+                                                <p className="text-sm font-medium text-slate-500">Your clinic will confirm the date and time.</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setShowBookingModal(false)} className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition">
+                                            <XCircle className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-sm font-bold text-slate-600 block mb-1.5">Pet *</label>
+                                            <select
+                                                value={bookingForm.patientId}
+                                                onChange={e => setBookingForm(f => ({ ...f, patientId: e.target.value }))}
+                                                className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none font-medium"
+                                            >
+                                                <option value="">Select your pet</option>
+                                                {(client.patients || []).map((pet: any) => (
+                                                    <option key={pet.id} value={pet.id}>{pet.name} ({pet.species})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-sm font-bold text-slate-600 block mb-1.5">Service *</label>
+                                            <select
+                                                value={bookingForm.procedureId}
+                                                onChange={e => setBookingForm(f => ({ ...f, procedureId: e.target.value }))}
+                                                className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none font-medium"
+                                            >
+                                                <option value="">Select a service</option>
+                                                {availableProcedures.map((proc: any) => (
+                                                    <option key={proc.id} value={proc.id}>{proc.name}{proc.costClient ? ` — ${client.clinic?.currencySymbol || '₦'}${Number(proc.costClient).toLocaleString()}` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-sm font-bold text-slate-600 block mb-1.5">Preferred Date *</label>
+                                                <input
+                                                    type="date"
+                                                    value={bookingForm.date}
+                                                    min={new Date().toISOString().split('T')[0]}
+                                                    onChange={e => setBookingForm(f => ({ ...f, date: e.target.value }))}
+                                                    className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none font-medium"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-bold text-slate-600 block mb-1.5">Preferred Time *</label>
+                                                <input
+                                                    type="time"
+                                                    value={bookingForm.time}
+                                                    onChange={e => setBookingForm(f => ({ ...f, time: e.target.value }))}
+                                                    className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none font-medium"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-sm font-bold text-slate-600 block mb-1.5">Notes (optional)</label>
+                                            <textarea
+                                                rows={3}
+                                                value={bookingForm.notes}
+                                                onChange={e => setBookingForm(f => ({ ...f, notes: e.target.value }))}
+                                                placeholder="Describe the reason for your visit..."
+                                                className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none font-medium"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 mt-6">
+                                        <button
+                                            onClick={() => setShowBookingModal(false)}
+                                            className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all"
+                                        >Cancel</button>
+                                        <button
+                                            onClick={handleRequestAppointment}
+                                            disabled={bookingSubmitting}
+                                            className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-black hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {bookingSubmitting ? 'Sending...' : <><Send className="w-4 h-4" /> Send Request</>}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -906,6 +1134,91 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
                         </div>
                     )}
 
+                    {activeTab === 'BILLING' && (
+                        <div className="space-y-6">
+                            {invoiceSummary && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
+                                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Invoices</p>
+                                        <p className="mt-2 text-3xl font-black text-slate-800">{invoiceSummary.totalInvoices}</p>
+                                    </div>
+                                    <div className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
+                                        <p className="text-xs font-black uppercase tracking-widest text-emerald-600">Total Paid</p>
+                                        <p className="mt-2 text-3xl font-black text-emerald-700">{client.clinic?.currencySymbol || '₦'}{Number(invoiceSummary.totalPaid || 0).toLocaleString()}</p>
+                                    </div>
+                                    <div className="rounded-[28px] border border-rose-100 bg-rose-50/50 p-6 shadow-sm">
+                                        <p className="text-xs font-black uppercase tracking-widest text-rose-600">Outstanding Balance</p>
+                                        <p className="mt-2 text-3xl font-black text-rose-700">{client.clinic?.currencySymbol || '₦'}{Number(invoiceSummary.totalOwed || 0).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-sm">
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Invoices & Billing</h2>
+                                <p className="mt-1 text-sm font-medium text-slate-500">View invoices, payments, and outstanding balances.</p>
+                                <div className="mt-6 space-y-4">
+                                    {invoices.length === 0 && (
+                                        <div className="rounded-3xl border border-dashed border-slate-200 p-12 text-center">
+                                            <Receipt className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+                                            <p className="text-lg font-black text-slate-500">No invoices yet</p>
+                                            <p className="mt-2 text-sm font-medium text-slate-400">Invoices from your clinic will appear here.</p>
+                                        </div>
+                                    )}
+                                    {invoices.map((invoice: any) => (
+                                        <div key={invoice.id} className={`rounded-[28px] border p-5 cursor-pointer transition-all hover:shadow-md ${invoice.balanceDue > 0 ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100 bg-slate-50/70'}`}
+                                            onClick={() => setSelectedInvoice(selectedInvoice?.id === invoice.id ? null : invoice)}
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${invoice.balanceDue > 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                        {invoice.balanceDue > 0 ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black uppercase tracking-widest text-blue-600">{invoice.invoiceNumber}</p>
+                                                        <p className="mt-1 text-sm font-bold text-slate-800">{invoice.type} • {invoice.status}</p>
+                                                        <p className="mt-0.5 text-xs font-medium text-slate-500">{new Date(invoice.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total</p>
+                                                    <p className="text-lg font-black text-slate-800">{client.clinic?.currencySymbol || '₦'}{Number(invoice.total || 0).toLocaleString()}</p>
+                                                    {invoice.balanceDue > 0 && (
+                                                        <p className="text-sm font-bold text-rose-600">Due: {client.clinic?.currencySymbol || '₦'}{Number(invoice.balanceDue).toLocaleString()}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {selectedInvoice?.id === invoice.id && (
+                                                <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                                                    <h4 className="text-sm font-black text-slate-700">Line Items</h4>
+                                                    {(invoice.items || []).map((item: any, idx: number) => (
+                                                        <div key={item.id || idx} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
+                                                            <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                                                            <span className="text-sm font-bold text-slate-600">x{item.quantity} @ {client.clinic?.currencySymbol || '₦'}{Number(item.pricePerUnit).toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                    {(invoice.payments || []).length > 0 && (
+                                                        <>
+                                                            <h4 className="text-sm font-black text-slate-700 mt-3">Payments</h4>
+                                                            {invoice.payments.map((payment: any) => (
+                                                                <div key={payment.id} className="flex items-center justify-between bg-emerald-50 rounded-xl px-4 py-2.5">
+                                                                    <span className="text-sm font-medium text-emerald-700 flex items-center gap-2">
+                                                                        <CreditCard className="w-4 h-4" /> {payment.method}
+                                                                    </span>
+                                                                    <span className="text-sm font-bold text-emerald-700">{client.clinic?.currencySymbol || '₦'}{Number(payment.amount).toLocaleString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'ORDERS' && (
                         <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-sm">
                             <h2 className="text-2xl font-black text-slate-800 tracking-tight">Orders</h2>
@@ -943,34 +1256,57 @@ export const PortalDashboard: React.FC<PortalDashboardProps> = ({ client: initia
                     )}
 
                     {activeTab === 'SETTINGS' && (
-                        <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-sm">
-                            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Settings & Integrations</h2>
-                            <p className="mt-1 text-sm font-medium text-slate-500">Manage your account and cloud storage.</p>
-                            
-                            <div className="mt-8 space-y-6">
-                                <div className="rounded-2xl border border-slate-100 p-6 bg-slate-50/50">
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-800">Google Drive Integration</h3>
-                                            <p className="mt-1 text-sm font-medium text-slate-500">
-                                                Connect your personal Google Drive to safely export and backup your pet's medical records and invoices.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-6 flex flex-wrap gap-4">
-                                        <button 
-                                            onClick={handleConnectDrive}
-                                            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-700 transition"
-                                        >
-                                            Connect Google Drive
-                                        </button>
-                                        <button 
-                                            onClick={handleExportData}
-                                            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-50 transition"
-                                        >
-                                            Export My Data to Drive
-                                        </button>
-                                    </div>
+                        <div className="space-y-6">
+                            <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-sm">
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Change Password</h2>
+                                <p className="mt-1 text-sm font-medium text-slate-500">Update your portal login password.</p>
+                                <div className="mt-6 max-w-md space-y-4">
+                                    <input
+                                        type="password"
+                                        value={passwordForm.currentPassword}
+                                        onChange={e => setPasswordForm(f => ({ ...f, currentPassword: e.target.value }))}
+                                        placeholder="Current password"
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-medium outline-none focus:border-blue-300"
+                                    />
+                                    <input
+                                        type="password"
+                                        value={passwordForm.newPassword}
+                                        onChange={e => setPasswordForm(f => ({ ...f, newPassword: e.target.value }))}
+                                        placeholder="New password"
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-medium outline-none focus:border-blue-300"
+                                    />
+                                    <input
+                                        type="password"
+                                        value={passwordForm.confirmPassword}
+                                        onChange={e => setPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                                        placeholder="Confirm new password"
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-medium outline-none focus:border-blue-300"
+                                    />
+                                    <button
+                                        onClick={handleChangePassword}
+                                        className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-black text-white transition hover:bg-blue-700"
+                                    >
+                                        Update Password
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-sm">
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Google Drive Integration</h2>
+                                <p className="mt-1 text-sm font-medium text-slate-500">Connect your personal Google Drive to safely export and backup your pet's medical records and invoices.</p>
+                                <div className="mt-6 flex flex-wrap gap-4">
+                                    <button 
+                                        onClick={handleConnectDrive}
+                                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-700 transition"
+                                    >
+                                        Connect Google Drive
+                                    </button>
+                                    <button 
+                                        onClick={handleExportData}
+                                        className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-50 transition"
+                                    >
+                                        Export My Data to Drive
+                                    </button>
                                 </div>
                             </div>
                         </div>

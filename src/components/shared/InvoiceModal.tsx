@@ -32,10 +32,23 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 }) => {
     const printAreaRef = useRef<HTMLDivElement>(null);
 
+    const paperWidth = settings.paperWidth || 'A4';
+    const isThermal = paperWidth !== 'A4';
+    const thermalMm = paperWidth === '58mm' ? 58 : 80;
+
     if (!isOpen) return null;
 
     const handlePrint = () => {
-        window.print();
+        if (isThermal) {
+            const style = document.createElement('style');
+            style.id = 'thermal-print-page';
+            style.textContent = `@page { size: ${paperWidth}; margin: 2mm; }`;
+            document.head.appendChild(style);
+            window.print();
+            setTimeout(() => document.getElementById('thermal-print-page')?.remove(), 500);
+        } else {
+            window.print();
+        }
     };
 
     const handleDownloadPDF = () => {
@@ -44,7 +57,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         const filename = `${type}_${invoiceNumber.replace(/\//g, '-')}.pdf`;
 
         const options = {
-            margin: [10, 10, 10, 10],
+            margin: [isThermal ? 3 : 10, isThermal ? 3 : 10, isThermal ? 3 : 10, isThermal ? 3 : 10],
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
@@ -55,7 +68,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             },
             jsPDF: {
                 unit: 'mm',
-                format: 'a4',
+                format: isThermal ? [thermalMm, 297] as any : 'a4',
                 orientation: 'portrait'
             }
         };
@@ -67,7 +80,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     const isUnpaid = effectiveBalance > 0 && type === 'INVOICE';
 
     const content = (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 print:p-0 print:bg-white print:block print:inset-0 animate-fade-in overflow-y-auto printable-area">
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 print:p-0 print:bg-white print:block print:inset-0 animate-fade-in overflow-y-auto printable-area ${isThermal ? 'thermal-print' : ''}`}>
             <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:h-auto print:shadow-none print:h-auto print:w-full print:max-w-none print:rounded-none print:static">
 
                 {/* Actions Header (Hidden when printing) */}
@@ -110,10 +123,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
                 {/* Scrollable Content */}
                 <div className={`overflow-y-auto p-2 sm:p-4 md:p-8 bg-slate-100 flex justify-center print:p-0 print:bg-white print:overflow-visible print:block`} ref={printAreaRef}>
-                    <div className="bg-white w-full max-w-[210mm] min-h-0 md:min-h-[297mm] p-4 sm:p-6 md:p-14 shadow-lg print:shadow-none print:w-full print:max-w-none print:min-h-0 print:p-8 print:m-0 relative flex flex-col font-sans text-slate-900 print:text-black">
+                    <div className="bg-white w-full max-w-[210mm] min-h-0 md:min-h-[297mm] p-4 sm:p-6 md:p-14 shadow-lg print:shadow-none print:w-full print:max-w-none print:min-h-0 print:p-8 print:m-0 relative flex flex-col font-sans text-slate-900 print:text-black print-area-inner">
 
                         {/* Logo and Header Center */}
-                        <div className="text-center mb-6 sm:mb-10 md:mb-16 print:mb-8">
+                        <div className="text-center mb-6 sm:mb-10 md:mb-16 print:mb-8 thermal-header">
                             <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-900 print:text-blue-900 tracking-tight mb-1 sm:mb-2">
                                 {settings.name || 'Vet Nexus'}
                             </h1>
@@ -124,7 +137,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         </div>
 
                         {/* BILL TO and INVOICE DETAILS Row */}
-                        <div className="flex flex-col md:flex-row justify-between items-start gap-8 md:gap-0 mb-8 md:mb-12 print:mb-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start gap-8 md:gap-0 mb-8 md:mb-12 print:mb-6 thermal-stack">
                             {/* Left: Billed To */}
                             <div className="w-full md:w-auto">
                                 <h3 className="text-xs font-bold text-peach-600 print:text-peach-800 uppercase tracking-widest mb-2">BILLED TO</h3>
@@ -133,7 +146,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
                             {/* Right: Invoice Info */}
                             <div className="text-left md:text-right w-full md:w-auto">
-                                <h2 className="text-2xl font-black text-peach-600 print:text-peach-800 uppercase tracking-wider mb-2">
+                                <h2 className="text-2xl font-black text-peach-600 print:text-peach-800 uppercase tracking-wider mb-2 thermal-title">
                                     {type}
                                 </h2>
                                 <div className="space-y-1">
@@ -148,7 +161,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         </div>
 
                         {/* Items Table - Clean & Spacious */}
-                        <div className="mb-6 sm:mb-10 print:mb-6 overflow-x-auto -mx-2 px-2 print:overflow-visible">
+                        <div className="mb-6 sm:mb-10 print:mb-6 overflow-x-auto -mx-2 px-2 print:overflow-visible thermal-mb">
                             <table className="w-full min-w-[320px]">
                                 <thead>
                                     <tr className="border-b border-slate-200">
@@ -180,7 +193,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         </div>
 
                         {/* Footer Section: Sale By, Summary, Account Details */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 border-t border-slate-100 pt-4 sm:pt-8 mt-auto break-inside-avoid print:pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 border-t border-slate-100 pt-4 sm:pt-8 mt-auto break-inside-avoid print:pt-4 thermal-footer-grid">
 
                             {/* Left Column: Staff & Bank Info */}
                             <div className="space-y-4 sm:space-y-8 order-2 md:order-1 print:space-y-4">
@@ -244,18 +257,18 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                     </div>
                                 )}
 
-                                <div className="flex justify-between items-center text-slate-900 print:text-black border-t border-slate-100 pt-2 sm:pt-3 pb-1">
+                                <div className="flex justify-between items-center text-slate-900 print:text-black border-t border-slate-100 pt-2 sm:pt-3 pb-1 thermal-total">
                                     <span className="text-base sm:text-lg font-black">Total:</span>
                                     <span className="text-lg sm:text-xl font-black">{settings.currencySymbol}{totals.total.toLocaleString()}</span>
                                 </div>
 
-                                <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-600 print:text-slate-800">
+                                <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-600 print:text-slate-800 thermal-amount">
                                     <span>Amount Paid:</span>
                                     <span>{settings.currencySymbol}{amountPaid.toLocaleString()}</span>
                                 </div>
 
                                 {type === 'INVOICE' && (
-                                    <div className="flex justify-between text-base sm:text-lg font-black text-peach-700 print:text-peach-800 pt-1 sm:pt-2">
+                                    <div className="flex justify-between text-base sm:text-lg font-black text-peach-700 print:text-peach-800 pt-1 sm:pt-2 thermal-total">
                                         <span>Balance Due:</span>
                                         <span>{settings.currencySymbol}{effectiveBalance.toLocaleString()}</span>
                                     </div>
@@ -264,7 +277,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                 {/* Unpaid Badge */}
                                 {isUnpaid && (
                                     <div className="mt-2 sm:mt-4 text-right">
-                                        <div className="inline-block border-2 border-rose-500 text-rose-500 px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-black uppercase tracking-widest print:border-red-600 print:text-red-600">
+                                        <div className="inline-block border-2 border-rose-500 text-rose-500 px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-black uppercase tracking-widest print:border-red-600 print:text-red-600 thermal-badge">
                                             Unpaid
                                         </div>
                                     </div>
@@ -273,7 +286,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         </div>
 
                         {/* Bottom Greeting */}
-                        <div className="text-center mt-8 sm:mt-16 pt-4 sm:pt-8 border-t border-slate-50 print:mt-8">
+                        <div className="text-center mt-8 sm:mt-16 pt-4 sm:pt-8 border-t border-slate-50 print:mt-8 thermal-greeting">
                             <p className="text-[10px] sm:text-xs font-bold text-slate-400 italic">Thank you for your business!</p>
                         </div>
 
