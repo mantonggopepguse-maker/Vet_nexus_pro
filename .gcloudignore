@@ -1,14 +1,17 @@
-.git
+﻿.git
+.gcloudignore
 node_modules
 server/node_modules
-# dist (allowing for local build bypass)
+dist
 server/dist
+scratch
 *.log
-build_logs.txt
+*.txt
 package-lock.json
 server/package-lock.json
 .env
 .env.local
+.env.production
 *.db
 *.db-journal
 server/prisma/dev.db

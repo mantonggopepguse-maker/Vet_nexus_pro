@@ -46,3 +46,4 @@ deploy-vetnexus.ps1
 server/list-models.mjs
 server/test-gemini-key.mjs
 server/test-json-mode.mjs
+server/prisma/generated-client/
