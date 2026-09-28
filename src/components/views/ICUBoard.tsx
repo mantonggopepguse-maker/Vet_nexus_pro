@@ -157,9 +157,7 @@ export const ICUBoard: React.FC<ICUBoardProps> = ({ settings, currentUser, onNav
          action: {
            label: "View Invoice",
            onClick: () => {
-             // We can navigate to sales or a specific invoice view if it exists
-             // For now, let's navigate to SALES view
-             onNavigate('SALES');
+             onNavigate('SALES_HISTORY');
            }
          }
        });

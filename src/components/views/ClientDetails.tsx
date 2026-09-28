@@ -22,7 +22,16 @@ import {
     Trash2,
     Upload,
     User as UserIcon,
-    ListOrdered
+    ListOrdered,
+    Copy,
+    Check,
+    Eye,
+    EyeOff,
+    KeyRound,
+    Lock,
+    ExternalLink,
+    RefreshCw,
+    Sparkles
 } from 'lucide-react';
 import { api } from '../../services/apiService';
 import { Pet, User, Department } from '../../types';
@@ -95,6 +104,11 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
     const [queueModal, setQueueModal] = useState<QueueModalState>({
         show: false, patient: null, departmentId: '', reason: '', priority: 'Normal', departments: []
     });
+    const [showPassword, setShowPassword] = useState(false);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+    const [isGeneratingCredentials, setIsGeneratingCredentials] = useState(false);
+    const [isSendingInvite, setIsSendingInvite] = useState(false);
+    const [isRevokingAccess, setIsRevokingAccess] = useState(false);
 
     useEffect(() => {
         loadClientDetails();
@@ -523,80 +537,281 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-3">
-                                    <button onClick={() => window.dispatchEvent(new CustomEvent('app-navigate', { detail: { view: 'AI_HUB', tab: 'CLIENT' } }))} className="px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center gap-2">
+                                    <button onClick={() => window.dispatchEvent(new CustomEvent('app-navigate', { detail: { view: 'AI_HUB', tab: 'CLIENT' } }))} className="px-5 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 font-semibold flex items-center gap-2 hover:bg-slate-100 transition-all">
                                         <MessageSquare className="w-4 h-4" /> Open inbox
                                     </button>
-                                    {!client.isPortalEnabled && (
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    const response = await api.clients.generatePortalCredentials(client.id);
-                                                    setClient(response.client || client);
-                                                    toast.success(response.emailDelivery?.delivered ? 'Login details sent' : `Temporary password: ${response.temporaryPassword}`);
-                                                } catch (err: any) {
-                                                    toast.error(err?.message || 'Failed to generate login details');
-                                                }
-                                            }}
-                                            className="px-5 py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-black transition-all"
-                                        >
-                                            Generate login
-                                        </button>
-                                    )}
-                                    {!client.isPortalEnabled && (
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    const response = client.portalAccess?.invite?.status === 'PENDING'
-                                                        ? await api.clients.resendPortalInvite(client.id)
-                                                        : await api.clients.sendPortalInvite(client.id);
-                                                    setClient(response.client || client);
-                                                    if (response.emailDelivery && !response.emailDelivery.delivered) {
-                                                        toast.error(`Invite created, but email failed to send: ${response.emailDelivery.error || 'Unknown error'}`);
-                                                    } else {
-                                                        toast.success(client.portalAccess?.invite?.status === 'PENDING' ? 'Invite sent again' : 'Invite sent');
+                                    
+                                    <button
+                                        disabled={isGeneratingCredentials}
+                                        onClick={async () => {
+                                            if (!client.email) {
+                                                toast.error('Please add an email address to this client before generating login details.');
+                                                return;
+                                            }
+                                            setIsGeneratingCredentials(true);
+                                            try {
+                                                const response = await api.clients.generatePortalCredentials(client.id);
+                                                const updatedClient = response.client || {
+                                                    ...client,
+                                                    isPortalEnabled: true,
+                                                    initialPassword: response.temporaryPassword,
+                                                    portalPasswordMustChange: true,
+                                                    passwordSet: true,
+                                                    portalAccess: {
+                                                        ...(client.portalAccess || {}),
+                                                        enabled: true,
+                                                        initialPassword: response.temporaryPassword,
+                                                        passwordMustChange: true,
                                                     }
-                                                } catch (err: any) {
-                                                    toast.error(err?.message || 'Failed to send invite');
+                                                };
+                                                setClient(updatedClient);
+                                                api.setCache('clients', updatedClient, `one:${client.id}`);
+                                                toast.success(
+                                                    response.emailDelivery?.delivered
+                                                        ? `Login details generated & sent to ${client.email}!`
+                                                        : `Login details generated! Temporary password: ${response.temporaryPassword}`
+                                                );
+                                            } catch (err: any) {
+                                                toast.error(err?.message || 'Failed to generate user login details');
+                                            } finally {
+                                                setIsGeneratingCredentials(false);
+                                            }
+                                        }}
+                                        className="px-5 py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-black transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                                    >
+                                        {isGeneratingCredentials ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <KeyRound className="w-4 h-4 text-amber-400" />
+                                        )}
+                                        {client.passwordSet || client.isPortalEnabled ? 'Generate user login details' : 'Generate user login details'}
+                                    </button>
+
+                                    <button
+                                        disabled={isSendingInvite}
+                                        onClick={async () => {
+                                            if (!client.email) {
+                                                toast.error('Please add an email address to this client before sending an invite.');
+                                                return;
+                                            }
+                                            setIsSendingInvite(true);
+                                            try {
+                                                const response = client.portalAccess?.invite?.status === 'PENDING'
+                                                    ? await api.clients.resendPortalInvite(client.id)
+                                                    : await api.clients.sendPortalInvite(client.id);
+                                                setClient(response.client || client);
+                                                if (response.emailDelivery && !response.emailDelivery.delivered) {
+                                                    toast.error(`Invite created, but email failed to send: ${response.emailDelivery.error || 'Unknown error'}`);
+                                                } else {
+                                                    toast.success(client.portalAccess?.invite?.status === 'PENDING' ? 'Invite sent again' : 'Invite sent');
                                                 }
-                                            }}
-                                            className="px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold hover:bg-teal-700 transition-all"
-                                        >
-                                            {client.portalAccess?.invite?.status === 'PENDING' ? 'Send again' : 'Send invite'}
-                                        </button>
-                                    )}
+                                            } catch (err: any) {
+                                                toast.error(err?.message || 'Failed to send invite');
+                                            } finally {
+                                                setIsSendingInvite(false);
+                                            }
+                                        }}
+                                        className="px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold hover:bg-teal-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isSendingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                        {client.portalAccess?.invite?.status === 'PENDING' ? 'Resend invite' : 'Send invite'}
+                                    </button>
+
                                     {client.isPortalEnabled && (
                                         <button
+                                            disabled={isRevokingAccess}
                                             onClick={async () => {
+                                                if (!window.confirm('Are you sure you want to remove portal access for this client?')) return;
+                                                setIsRevokingAccess(true);
                                                 try {
                                                     const response = await api.clients.revokePortalAccess(client.id);
-                                                    setClient(response.client || client);
+                                                    setClient(response.client || { ...client, isPortalEnabled: false, initialPassword: null });
                                                     toast.success('Portal access removed');
                                                 } catch (err: any) {
                                                     toast.error(err?.message || 'Failed to remove portal access');
+                                                } finally {
+                                                    setIsRevokingAccess(false);
                                                 }
                                             }}
-                                            className="px-5 py-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 font-semibold"
+                                            className="px-5 py-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 font-semibold hover:bg-rose-100 transition-all flex items-center gap-2 disabled:opacity-50"
                                         >
+                                            {isRevokingAccess ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                             Remove access
                                         </button>
                                     )}
                                 </div>
                             </div>
 
+                            {/* Portal Login Credentials Section */}
+                            <div className="client-panel-soft p-6 md:p-8 rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/50 to-teal-50/30 shadow-sm space-y-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/70 pb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold">
+                                            <KeyRound className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-extrabold text-slate-800">Portal Login Credentials</h4>
+                                            <p className="text-xs text-slate-500">Parent access information and current password details</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                                            client.isPortalEnabled
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : client.portalAccess?.invite?.status === 'PENDING'
+                                                    ? 'bg-amber-100 text-amber-800'
+                                                    : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            <span className={`w-2 h-2 rounded-full ${client.isPortalEnabled ? 'bg-emerald-500' : client.portalAccess?.invite?.status === 'PENDING' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                                            {client.isPortalEnabled ? 'Portal Active' : client.portalAccess?.invite?.status === 'PENDING' ? 'Invite Pending' : 'Inactive'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    {/* Portal Web Address */}
+                                    <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1.5">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Portal URL</span>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 truncate select-all">
+                                                {typeof window !== 'undefined' ? `${window.location.origin}/portal` : '/portal'}
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    const url = typeof window !== 'undefined' ? `${window.location.origin}/portal` : '/portal';
+                                                    navigator.clipboard.writeText(url);
+                                                    setCopiedField('url');
+                                                    toast.success('Portal URL copied to clipboard');
+                                                    setTimeout(() => setCopiedField(null), 2000);
+                                                }}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors shrink-0"
+                                                title="Copy Portal URL"
+                                            >
+                                                {copiedField === 'url' ? <Check className="w-4 h-4 text-teal-600" /> : <Copy className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Username / Email */}
+                                    <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1.5">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Username / Email</span>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 truncate select-all">
+                                                {client.email || 'No email configured'}
+                                            </span>
+                                            {client.email && (
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(client.email);
+                                                        setCopiedField('email');
+                                                        toast.success('Email copied to clipboard');
+                                                        setTimeout(() => setCopiedField(null), 2000);
+                                                    }}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors shrink-0"
+                                                    title="Copy Email"
+                                                >
+                                                    {copiedField === 'email' ? <Check className="w-4 h-4 text-teal-600" /> : <Copy className="w-4 h-4" />}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Password */}
+                                    <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Password</span>
+                                            {Boolean(client.initialPassword || client.portalAccess?.initialPassword) && (
+                                                <button
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                                    {showPassword ? 'Hide' : 'Show'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            {Boolean(client.initialPassword || client.portalAccess?.initialPassword) ? (
+                                                <>
+                                                    <span className="text-sm font-mono font-bold text-slate-900 truncate select-all bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                                                        {showPassword ? (client.initialPassword || client.portalAccess?.initialPassword) : '••••••••••••'}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => {
+                                                            const pwd = client.initialPassword || client.portalAccess?.initialPassword || '';
+                                                            navigator.clipboard.writeText(pwd);
+                                                            setCopiedField('password');
+                                                            toast.success('Initial password copied to clipboard');
+                                                            setTimeout(() => setCopiedField(null), 2000);
+                                                        }}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors shrink-0"
+                                                        title="Copy Initial Password"
+                                                    >
+                                                        {copiedField === 'password' ? <Check className="w-4 h-4 text-teal-600" /> : <Copy className="w-4 h-4" />}
+                                                    </button>
+                                                </>
+                                            ) : client.passwordSet && !client.portalAccess?.passwordMustChange ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 flex items-center gap-1.5">
+                                                        <Shield className="w-3.5 h-3.5" /> Custom password set by user
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 font-medium">Not generated yet</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Guidance Banner */}
+                                {Boolean(client.initialPassword || client.portalAccess?.initialPassword) ? (
+                                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400/30 text-amber-900 text-xs font-medium flex items-start gap-3">
+                                        <KeyRound className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-bold text-amber-900">Initial Password Active</p>
+                                            <p className="text-amber-800 mt-0.5">
+                                                This initial temporary password remains visible here until changed by the pet parent in their portal. You can share this password directly with the client or click <strong>Generate user login details</strong> to regenerate at any time.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : client.passwordSet && !client.portalAccess?.passwordMustChange ? (
+                                    <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium flex items-start gap-3">
+                                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-bold text-slate-800">Password Changed by Client</p>
+                                            <p className="text-slate-500 mt-0.5">
+                                                The pet parent has updated their password to a private password. For privacy and security, customized passwords are encrypted. If the client forgets their password, you can generate new login details at any time using the button above.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200/60 text-teal-900 text-xs font-medium flex items-start gap-3">
+                                        <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-bold text-teal-900">Instant Portal Setup</p>
+                                            <p className="text-teal-800 mt-0.5">
+                                                Click <strong>Generate user login details</strong> to generate an instant password for this client, or <strong>Send invite</strong> to send an activation email.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="client-panel-soft p-6">
                                     <p className="text-sm font-semibold text-slate-500 mb-4">Portal details</p>
                                     <div className="space-y-3 text-sm text-slate-700">
-                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Email</span><span>{client.email || 'No email added'}</span></div>
-                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Status</span><span>{client.isPortalEnabled ? 'Active' : client.portalAccess?.invite?.status || 'Not started'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Email</span><span className="font-semibold">{client.email || 'No email added'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Client code</span><span className="font-semibold">{client.clientCode || 'None'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Status</span><span className="font-semibold">{client.isPortalEnabled ? 'Active' : client.portalAccess?.invite?.status || 'Not started'}</span></div>
                                     </div>
                                 </div>
                                 <div className="client-panel-soft p-6">
                                     <p className="text-sm font-semibold text-slate-500 mb-4">Access history</p>
                                     <div className="space-y-3 text-sm text-slate-700">
-                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Password</span><span>{client.passwordSet ? 'Set' : 'Not set'}</span></div>
-                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Must change</span><span>{client.portalAccess?.passwordMustChange ? 'Yes' : 'No'}</span></div>
-                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Last login</span><span>{client.lastLogin ? new Date(client.lastLogin).toLocaleDateString() : 'No login yet'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Password status</span><span className="font-semibold">{client.initialPassword || client.portalAccess?.initialPassword ? 'Initial password' : client.passwordSet ? 'Custom password set' : 'Not set'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Must change</span><span className="font-semibold">{client.portalAccess?.passwordMustChange ? 'Yes (Temporary)' : 'No'}</span></div>
+                                        <div className="flex justify-between gap-4"><span className="text-slate-400">Last login</span><span className="font-semibold">{client.lastLogin ? new Date(client.lastLogin).toLocaleDateString() : 'No login yet'}</span></div>
                                     </div>
                                 </div>
                             </div>

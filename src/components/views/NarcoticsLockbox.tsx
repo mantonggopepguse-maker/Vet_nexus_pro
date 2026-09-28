@@ -65,6 +65,32 @@ export const NarcoticsLockbox: React.FC<NarcoticsLockboxProps> = ({ settings, cu
 
     const uniqueStaff = Array.from(new Set(logs.map(l => l.staff?.name || l.staffName))).filter(Boolean);
 
+    const handleExportRegister = () => {
+        if (filteredLogs.length === 0) {
+            toast.info("No audit logs to export");
+            return;
+        }
+        const headers = ["Timestamp", "Drug Name", "Patient Name", "Dispensed Quantity", "Authorizing Staff", "Clinical Notes"];
+        const rows = filteredLogs.map(l => [
+            `"${new Date(l.timestamp).toLocaleString()}"`,
+            `"${(l.item?.name || l.itemName || '').replace(/"/g, '""')}"`,
+            `"${(l.patient?.name || l.patientName || '').replace(/"/g, '""')}"`,
+            l.quantity,
+            `"${(l.staff?.name || l.staffName || '').replace(/"/g, '""')}"`,
+            `"${(l.notes || '').replace(/"/g, '""')}"`
+        ]);
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        const dateStr = new Date().toISOString().split('T')[0];
+        link.setAttribute("download", `narcotics_lockbox_register_${dateStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("Controlled substances register exported to CSV");
+    };
+
     return (
         <div className="space-y-10 animate-fade-in pb-32">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white p-10 rounded-[3rem] border border-white shadow-2xl relative overflow-hidden">
@@ -89,7 +115,10 @@ export const NarcoticsLockbox: React.FC<NarcoticsLockboxProps> = ({ settings, cu
                     >
                         <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
-                    <button className="btn-luminous btn-luminous-primary px-10 py-5 text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-rose-100">
+                    <button 
+                        onClick={handleExportRegister}
+                        className="btn-luminous btn-luminous-primary px-10 py-5 text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-rose-100"
+                    >
                         <Download className="w-4 h-4" /> Export Audit Register
                     </button>
                 </div>

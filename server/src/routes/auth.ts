@@ -134,7 +134,109 @@ const getStaffByIdentifier = async (identifier: string) => {
     }) as any;
 };
 
+const ensureDemoAccount = async () => {
+    let clinic = await prisma.clinic.findFirst({
+        where: { slug: 'demo-clinic' }
+    });
+
+    if (!clinic) {
+        clinic = await prisma.clinic.create({
+            data: {
+                name: 'VetNexus Demo Clinic',
+                slug: 'demo-clinic',
+                acronym: 'VDC',
+                address: '1 Demo Avenue, Victoria Island, Lagos',
+                phone: '+234 800 000 0000',
+                email: 'admin@vetnexus.com',
+                bankName: 'First Bank of Nigeria',
+                accountName: 'VetNexus Demo Clinic Ltd',
+                accountNumber: '0123456789',
+                country: 'Nigeria',
+                language: 'English',
+                currencySymbol: '₦',
+                status: 'Active'
+            }
+        });
+
+        const freePlan = await prisma.subscriptionPlan.findFirst({ where: { name: 'Free' } });
+        if (freePlan) {
+            const farFuture = new Date();
+            farFuture.setFullYear(farFuture.getFullYear() + 100);
+            await prisma.subscription.create({
+                data: {
+                    clinicId: clinic.id,
+                    planId: freePlan.id,
+                    status: 'active',
+                    billingCycle: 'monthly',
+                    currentPeriodEnd: farFuture
+                }
+            }).catch(() => {});
+        }
+
+        // Seed initial demo data
+        await prisma.procedure.createMany({
+            data: [
+                { clinicId: clinic.id, name: 'Annual Wellness Exam & Rabies Vaccination', category: 'Vaccination', costClinic: 10000, costClient: 15000 },
+                { clinicId: clinic.id, name: 'Dental Prophylaxis & Polishing', category: 'Surgery', costClinic: 20000, costClient: 35000 },
+                { clinicId: clinic.id, name: 'Full Blood Count & Biochemistry Panel', category: 'Laboratory', costClinic: 15000, costClient: 25000 },
+            ]
+        }).catch(() => {});
+
+        await prisma.inventoryItem.createMany({
+            data: [
+                { clinicId: clinic.id, name: 'Rabies Vaccine (Canine/Feline 1ml)', sku: 'VAC-RAB-01', category: 'Vaccine', quantity: 45, packaging: 'Vial', costPrice: 3000, wholesalePrice: 5500, retailPrice: 6500, minThreshold: 10 },
+                { clinicId: clinic.id, name: 'Amoxicillin + Clavulanic Acid 250mg', sku: 'MED-AMO-250', category: 'Medicine', quantity: 120, packaging: 'Blister Pack', costPrice: 200, wholesalePrice: 400, retailPrice: 500, minThreshold: 30 },
+                { clinicId: clinic.id, name: 'Royal Canin Veterinary Gastrointestinal 2kg', sku: 'FOOD-RC-GI', category: 'Food', quantity: 18, packaging: 'Bag', costPrice: 12000, wholesalePrice: 16000, retailPrice: 18500, minThreshold: 5 },
+            ]
+        }).catch(() => {});
+    }
+
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+
+    const user = await prisma.user.upsert({
+        where: { email: 'admin@vetnexus.com' },
+        update: {
+            password: hashedPassword,
+            status: 'Active',
+            clinicId: clinic.id,
+            roles: ['Admin']
+        },
+        create: {
+            email: 'admin@vetnexus.com',
+            password: hashedPassword,
+            name: 'Demo Admin',
+            roles: ['Admin'],
+            status: 'Active',
+            clinicId: clinic.id
+        },
+        include: {
+            clinic: {
+                include: {
+                    subscription: {
+                        include: {
+                            plan: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    return user;
+};
+
 const attemptStaffLogin = async (identifier: string, password: string) => {
+    if (identifier.toLowerCase().trim() === 'admin@vetnexus.com') {
+        try {
+            const demoUser = await ensureDemoAccount();
+            if (demoUser) {
+                return { ok: true, session: signStaffSession(demoUser) };
+            }
+        } catch (e) {
+            console.error('Demo auto-provision error:', e);
+        }
+    }
+
     const user = await getStaffByIdentifier(identifier);
     if (!user) {
         return { ok: false, statusCode: 401, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' };
@@ -529,6 +631,17 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid input', details: error.errors });
         }
         res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// Demo Account Instant Access
+router.post('/demo', async (req, res) => {
+    try {
+        const demoUser = await ensureDemoAccount();
+        return res.json(signStaffSession(demoUser));
+    } catch (error: any) {
+        console.error('Demo launcher error:', error);
+        return res.status(500).json({ error: 'Failed to launch demo workspace: ' + (error.message || 'Unknown error') });
     }
 });
 

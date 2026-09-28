@@ -299,11 +299,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const handleDemoLogin = async () => {
     setLoading(true);
     try {
-      const response = await api.auth.login({ email: 'admin@vetnexus.com', password: 'admin123' });
+      let response;
+      if (typeof (api.auth as any).demo === 'function') {
+        response = await (api.auth as any).demo();
+      } else {
+        response = await api.auth.login({ email: 'admin@vetnexus.com', password: 'admin123' });
+      }
       syncNotifications();
       onLogin(response.user);
+      toast.success("Welcome to VetNexus Demo Workspace!");
     } catch (error: any) {
-      toast.error("Unable to launch demo account at this time. Please try again shortly.");
+      toast.error(error.message || "Unable to launch demo account at this time. Please try again shortly.");
     } finally {
       setLoading(false);
     }
@@ -332,7 +338,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 </div>
                 <div>
                   <span className="text-xl font-extrabold tracking-tight text-slate-800 block">Vet Nexus</span>
-                  {!isLogin && <span className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Clinic account</span>}
+                  <span className="text-xs font-bold uppercase tracking-[0.20em] text-slate-500">Staff, Pet Parent & Admin Login</span>
                 </div>
               </div>
               {isLogin && (
@@ -850,15 +856,22 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               )}
 
               {isLogin && (
-                <div className="mt-4 text-center">
+                <div className="mt-4 text-center space-y-2">
                   <button
                     type="button"
                     onClick={handleDemoLogin}
                     disabled={loading}
-                    className="text-sm font-bold text-[#3B82F6] hover:underline underline-offset-4 disabled:opacity-50"
+                    className="text-sm font-bold text-[#3B82F6] hover:underline underline-offset-4 disabled:opacity-50 block w-full text-center"
                   >
                     {loading ? 'Processing...' : 'Launch Demo Account'}
                   </button>
+
+                  <a
+                    href="/portal/invite/code"
+                    className="text-xs font-bold text-slate-500 hover:text-teal-600 transition inline-block pt-1"
+                  >
+                    Have a pet owner invite code? <span className="underline text-teal-600">Claim Account</span>
+                  </a>
                 </div>
               )}
             </div>

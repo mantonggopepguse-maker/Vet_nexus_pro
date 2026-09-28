@@ -1,53 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout } from './components/shared/Layout';
 import { InventoryList } from './components/views/InventoryList';
-import { AddItemForm } from './components/forms/AddItemForm';
 import { Pos } from './components/views/Pos';
 import { Settings } from './components/views/Settings';
 import { Dashboard } from './components/views/Dashboard';
 import { Auth } from './components/views/Auth';
 import { ClientList } from './components/views/ClientList';
-import { AddClientForm } from './components/forms/AddClientForm';
 import { PatientList } from './components/views/PatientList';
-import { AddPatientForm } from './components/forms/AddPatientForm';
-import { Treatment } from './components/views/Treatment';
-import { ProcedureManagement } from './components/views/ProcedureManagement';
-import { Appointment } from './components/views/Appointment';
-import { StaffManagement } from './components/views/StaffManagement';
-import { AuditLog } from './components/views/AuditLog';
-import { SuperAdminDashboard } from './components/views/SuperAdminDashboard';
-import { ClinicDetails } from './components/views/ClinicDetails';
-import { ClientDetails } from './components/views/ClientDetails';
-import { PatientDetails } from './components/views/PatientDetails';
-import { TransactionHistory } from './components/views/TransactionHistory';
-import { FreeInvoice } from './components/views/FreeInvoice';
-import { Expenses } from './components/views/Expenses';
-import { AddExpenseForm } from './components/forms/AddExpenseForm';
-import { ProfitLossReport } from './components/views/ProfitLossReport';
-import { ReminderList } from './components/views/ReminderList';
-import { AIHub } from './components/views/AIHub';
-import { ICUBoard } from './components/views/ICUBoard';
-import { ShiftTimetable } from './components/views/ShiftTimetable';
-import { Branches } from './components/views/Branches';
-import { TriageBoard } from './components/views/TriageBoard';
-import { NarcoticsLockbox } from './components/views/NarcoticsLockbox';
-import { ClinicalCalculators } from './components/views/ClinicalCalculators';
-import { LabHub } from './components/views/LabHub';
-import { Hospitalization } from './components/views/Hospitalization';
-import PatientQueue from './components/views/PatientQueue';
-import { PortalInbox } from './components/views/PortalInbox';
 import { PremiumGate } from './components/shared/PremiumGate';
-import { SubscriptionCallback } from './components/views/SubscriptionCallback';
 import { InventoryItem, ViewState, AppView, ClinicSettings, Client, Pet, Procedure, User, LogEntry, Appointment as AppointmentType, Expense } from './types';
 import { api } from './services/apiService';
 import { Toaster, toast } from 'sonner';
 import { hasAccess } from './config/permissions';
 
-// Portal Imports
-import { PortalLogin } from './components/portal/PortalLogin';
-import { PortalDashboard } from './components/portal/PortalDashboard';
-import { PortalPetDetails } from './components/portal/PortalPetDetails';
-import { PortalClaim } from './components/portal/PortalClaim';
+// Lazy-loaded views and forms for faster initial bundle loading
+const AddItemForm = lazy(() => import('./components/forms/AddItemForm').then(m => ({ default: m.AddItemForm })));
+const AddClientForm = lazy(() => import('./components/forms/AddClientForm').then(m => ({ default: m.AddClientForm })));
+const AddPatientForm = lazy(() => import('./components/forms/AddPatientForm').then(m => ({ default: m.AddPatientForm })));
+const Treatment = lazy(() => import('./components/views/Treatment').then(m => ({ default: m.Treatment })));
+const ProcedureManagement = lazy(() => import('./components/views/ProcedureManagement').then(m => ({ default: m.ProcedureManagement })));
+const Appointment = lazy(() => import('./components/views/Appointment').then(m => ({ default: m.Appointment })));
+const StaffManagement = lazy(() => import('./components/views/StaffManagement').then(m => ({ default: m.StaffManagement })));
+const AuditLog = lazy(() => import('./components/views/AuditLog').then(m => ({ default: m.AuditLog })));
+const SuperAdminDashboard = lazy(() => import('./components/views/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
+const ClinicDetails = lazy(() => import('./components/views/ClinicDetails').then(m => ({ default: m.ClinicDetails })));
+const ClientDetails = lazy(() => import('./components/views/ClientDetails').then(m => ({ default: m.ClientDetails })));
+const PatientDetails = lazy(() => import('./components/views/PatientDetails').then(m => ({ default: m.PatientDetails })));
+const TransactionHistory = lazy(() => import('./components/views/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
+const FreeInvoice = lazy(() => import('./components/views/FreeInvoice').then(m => ({ default: m.FreeInvoice })));
+const Expenses = lazy(() => import('./components/views/Expenses').then(m => ({ default: m.Expenses })));
+const AddExpenseForm = lazy(() => import('./components/forms/AddExpenseForm').then(m => ({ default: m.AddExpenseForm })));
+const ProfitLossReport = lazy(() => import('./components/views/ProfitLossReport').then(m => ({ default: m.ProfitLossReport })));
+const ReminderList = lazy(() => import('./components/views/ReminderList').then(m => ({ default: m.ReminderList })));
+const AIHub = lazy(() => import('./components/views/AIHub').then(m => ({ default: m.AIHub })));
+const ICUBoard = lazy(() => import('./components/views/ICUBoard').then(m => ({ default: m.ICUBoard })));
+const ShiftTimetable = lazy(() => import('./components/views/ShiftTimetable').then(m => ({ default: m.ShiftTimetable })));
+const Branches = lazy(() => import('./components/views/Branches').then(m => ({ default: m.Branches })));
+const TriageBoard = lazy(() => import('./components/views/TriageBoard').then(m => ({ default: m.TriageBoard })));
+const NarcoticsLockbox = lazy(() => import('./components/views/NarcoticsLockbox').then(m => ({ default: m.NarcoticsLockbox })));
+const ClinicalCalculators = lazy(() => import('./components/views/ClinicalCalculators').then(m => ({ default: m.ClinicalCalculators })));
+const LabHub = lazy(() => import('./components/views/LabHub').then(m => ({ default: m.LabHub })));
+const Hospitalization = lazy(() => import('./components/views/Hospitalization').then(m => ({ default: m.Hospitalization })));
+const PatientQueue = lazy(() => import('./components/views/PatientQueue'));
+const PortalInbox = lazy(() => import('./components/views/PortalInbox').then(m => ({ default: m.PortalInbox })));
+const SubscriptionCallback = lazy(() => import('./components/views/SubscriptionCallback').then(m => ({ default: m.SubscriptionCallback })));
+const SurgeryHub = lazy(() => import('./components/views/SurgeryHub').then(m => ({ default: m.SurgeryHub })));
+const ReferralManagement = lazy(() => import('./components/views/ReferralManagement').then(m => ({ default: m.ReferralManagement })));
+const ReferralPortal = lazy(() => import('./components/views/ReferralPortal').then(m => ({ default: m.ReferralPortal })));
+
+// Lazy Portal Imports
+const PortalLogin = lazy(() => import('./components/portal/PortalLogin').then(m => ({ default: m.PortalLogin })));
+const PortalDashboard = lazy(() => import('./components/portal/PortalDashboard').then(m => ({ default: m.PortalDashboard })));
+const PortalPetDetails = lazy(() => import('./components/portal/PortalPetDetails').then(m => ({ default: m.PortalPetDetails })));
+const PortalClaim = lazy(() => import('./components/portal/PortalClaim').then(m => ({ default: m.PortalClaim })));
 
 const DEFAULT_SETTINGS: ClinicSettings = {
   name: 'Vet Nexus',
@@ -189,7 +194,7 @@ const App: React.FC = () => {
           handlePortalLogout();
         }
       } else {
-        setCurrentView('PORTAL_LOGIN');
+        window.location.href = '/';
       }
     } else if (!userJson && clientJson) {
       window.location.href = '/portal';
@@ -225,14 +230,35 @@ const App: React.FC = () => {
   // If Flutterwave redirects back to /subscription/callback, show verification screen
   if (window.location.pathname === '/subscription/callback' || window.location.pathname.includes('subscription/callback')) {
     return (
-      <>
+      <Suspense fallback={
+        <div className="flex flex-col items-center justify-center h-screen gap-3">
+          <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-[#14B8A6]"></div>
+        </div>
+      }>
         <Toaster position="top-right" richColors />
         <SubscriptionCallback onSuccess={(user) => {
           localStorage.setItem('user', JSON.stringify(user));
           // Reload to trigger normal auth flow
           window.location.href = '/';
         }} />
-      </>
+      </Suspense>
+    );
+  }
+
+  // Public Referral Portal Route: /referral/:clinicId
+  const isReferralRoute = window.location.pathname.startsWith('/referral/');
+  const referralClinicId = isReferralRoute ? window.location.pathname.split('/referral/')[1]?.split('/')[0] : null;
+
+  if (isReferralRoute && referralClinicId) {
+    return (
+      <Suspense fallback={
+        <div className="flex flex-col items-center justify-center h-screen gap-3">
+          <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-[#14B8A6]"></div>
+        </div>
+      }>
+        <Toaster position="top-right" richColors />
+        <ReferralPortal clinicId={referralClinicId} clinicName={settings.name || 'Vet Nexus'} />
+      </Suspense>
     );
   }
 
@@ -548,7 +574,7 @@ const App: React.FC = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('client');
     setCurrentClient(null);
-    setCurrentView('PORTAL_LOGIN');
+    window.location.href = '/';
   };
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -638,8 +664,27 @@ const App: React.FC = () => {
     try {
       const created = await api.patients.create(newPet);
       setPatients(prev => [created, ...prev]);
+      // Update clients state so pet count immediately reflects in client views
+      if (newPet.ownerId) {
+        setClients(prev => prev.map(c => {
+          if (c.id === newPet.ownerId) {
+            const existing = c.patients || c.pets || [];
+            const nextPets = [created, ...existing.filter(p => p.id !== created.id)];
+            return { ...c, patients: nextPets, pets: nextPets };
+          }
+          return c;
+        }));
+      }
+      api.invalidateCache('clients');
+      api.invalidateCache('patients');
+
+      if (selectedClientId && selectedClientId === newPet.ownerId) {
+        setCurrentView('CLIENT_DETAILS');
+      } else {
+        setCurrentView('PATIENTS');
+      }
       setViewState('LIST');
-      toast.success("Patient added");
+      toast.success("Patient added successfully");
     } catch (error) {
       toast.error("Failed to create patient");
     } finally {
@@ -652,6 +697,15 @@ const App: React.FC = () => {
     try {
       const updated = await api.patients.update(updatedPet);
       setPatients(prev => prev.map(p => p.id === updated.id ? updated : p));
+      setClients(prev => prev.map(c => {
+        if (c.patients || c.pets) {
+          const updatedList = (c.patients || c.pets || []).map(p => p.id === updated.id ? updated : p);
+          return { ...c, patients: updatedList, pets: updatedList };
+        }
+        return c;
+      }));
+      api.invalidateCache('clients');
+      api.invalidateCache('patients');
       setViewState('LIST');
       setCurrentView('PATIENT_DETAILS'); // Return to details after edit
       toast.success("Patient updated");
@@ -666,6 +720,7 @@ const App: React.FC = () => {
     try {
       await api.clients.delete(id);
       setClients(prev => prev.filter(c => c.id !== id));
+      api.invalidateCache('clients');
       setCurrentView('CLIENTS');
       toast.success("Client deleted successfully");
     } catch (error) {
@@ -677,6 +732,15 @@ const App: React.FC = () => {
     try {
       await api.patients.delete(id);
       setPatients(prev => prev.filter(p => p.id !== id));
+      setClients(prev => prev.map(c => {
+        if (c.patients || c.pets) {
+          const filtered = (c.patients || c.pets || []).filter(p => p.id !== id);
+          return { ...c, patients: filtered, pets: filtered };
+        }
+        return c;
+      }));
+      api.invalidateCache('clients');
+      api.invalidateCache('patients');
       setCurrentView('PATIENTS');
       toast.success("Patient deleted successfully");
     } catch (error) {
@@ -814,19 +878,14 @@ const App: React.FC = () => {
 
     if (isPortal) {
       switch (currentView) {
-        case 'PORTAL_LOGIN':
-          return <PortalLogin onLogin={(client) => {
-            setCurrentClient(client);
-            setCurrentView('PORTAL_DASHBOARD');
-          }} onViewClaim={() => setCurrentView('PORTAL_INVITE')} />;
         case 'PORTAL_INVITE':
-          return <PortalClaim onBack={() => setCurrentView('PORTAL_LOGIN')} onSuccess={(client) => {
+          return <PortalClaim onBack={() => { window.location.href = '/'; }} onSuccess={(client) => {
             if (client) {
               setCurrentClient(client);
               setCurrentView('PORTAL_DASHBOARD');
               return;
             }
-            setCurrentView('PORTAL_LOGIN');
+            window.location.href = '/';
           }} />;
         case 'PORTAL_DASHBOARD':
           return <PortalDashboard client={currentClient} onLogout={handlePortalLogout} onViewPatient={(pid) => {
@@ -838,7 +897,7 @@ const App: React.FC = () => {
             <PortalPetDetails patientId={selectedPatientId} onBack={() => setCurrentView('PORTAL_DASHBOARD')} />
           ) : null;
         default:
-          return <PortalLogin onLogin={() => {}} onViewClaim={() => {}} />;
+          return <Auth onLogin={handleLogin} />;
       }
     }
 
@@ -1007,6 +1066,7 @@ const App: React.FC = () => {
             <div className="h-full flex flex-col">
               <ClientList
                 clients={clients}
+                patients={patients}
                 isLoading={isLoadingData}
                 onAddClient={() => setViewState('ADD_CLIENT')}
                 onViewClient={(id) => {
@@ -1119,6 +1179,7 @@ const App: React.FC = () => {
         return (
           <Appointment
             clients={clients}
+            patients={patients}
             procedures={procedures}
             settings={settings}
             appointments={appointments}
@@ -1306,6 +1367,28 @@ const App: React.FC = () => {
         );
       case 'PORTAL_INBOX':
         return <PortalInbox onBack={() => setCurrentView('DASHBOARD')} />;
+      case 'SURGERY_HUB':
+        return (
+          <PremiumGate
+            user={currentUser}
+            featureName="Surgical Theater Hub"
+            featureKey="hospitalFeatures"
+            description="Live intra-operative anesthesia monitoring, ASA scoring, and surgical vitals logging."
+          >
+            <SurgeryHub onNavigate={handleNavigate} />
+          </PremiumGate>
+        );
+      case 'REFERRAL_MANAGEMENT':
+        return (
+          <ReferralManagement onNavigate={handleNavigate} />
+        );
+      case 'REFERRAL_PORTAL':
+        return (
+          <ReferralPortal
+            clinicId={currentUser?.clinicId || settings.acronym || 'default'}
+            clinicName={settings.name || 'Vet Nexus'}
+          />
+        );
       case 'SUBSCRIPTION_CALLBACK':
         return null;
 
@@ -1314,11 +1397,20 @@ const App: React.FC = () => {
     }
   };
 
+  const loadingFallback = (
+    <div className="flex flex-col items-center justify-center h-full min-h-[300px] gap-3">
+      <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-[#14B8A6]"></div>
+      <p className="text-slate-400 font-medium text-sm animate-pulse">Loading view...</p>
+    </div>
+  );
+
   if (isPortal) {
     return (
       <div className="h-screen bg-[#F8FAFC]">
         <Toaster position="top-right" richColors />
-        {renderContent()}
+        <Suspense fallback={loadingFallback}>
+          {renderContent()}
+        </Suspense>
       </div>
     );
   }
@@ -1336,7 +1428,9 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           settings={settings}
         >
-          {renderContent()}
+          <Suspense fallback={loadingFallback}>
+            {renderContent()}
+          </Suspense>
         </Layout>
       )}
     </div>

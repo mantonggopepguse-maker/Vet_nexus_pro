@@ -1,4 +1,4 @@
-import { InventoryItem, Client, Pet, Procedure, User, LogEntry, ClinicSettings, Appointment, AIConversation, AIMessage, FAQ, Hospitalization, PortalConversationSummary, PortalInboxSummary, PortalShopItem, PortalOrderSummary } from '../types';
+import { InventoryItem, Client, Pet, Procedure, User, LogEntry, ClinicSettings, Appointment, AIConversation, AIMessage, FAQ, Hospitalization, PortalConversationSummary, PortalInboxSummary, PortalShopItem, PortalOrderSummary, Surgery, Referral } from '../types';
 import { cacheManager } from './cacheManager';
 
 export const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
@@ -41,6 +41,17 @@ export const api = {
             }).then(handleResponse).then(res => {
                 if (res.token) localStorage.setItem('token', res.token);
                 // Set user context for caching after login
+                if (res.user) {
+                    cacheManager.setUserContext(res.user.clinicId || 'default', res.user.id);
+                }
+                return res;
+            }),
+        demo: () =>
+            fetch(`${API_URL}/auth/demo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            }).then(handleResponse).then(res => {
+                if (res.token) localStorage.setItem('token', res.token);
                 if (res.user) {
                     cacheManager.setUserContext(res.user.clinicId || 'default', res.user.id);
                 }
@@ -300,6 +311,7 @@ export const api = {
                 body: JSON.stringify(pet),
             }).then(handleResponse).then(res => {
                 cacheManager.invalidate('patients');
+                cacheManager.invalidate('clients');
                 return res;
             }),
         update: (pet: Pet): Promise<Pet> =>
@@ -309,6 +321,7 @@ export const api = {
                 body: JSON.stringify(pet),
             }).then(handleResponse).then(res => {
                 cacheManager.invalidate('patients');
+                cacheManager.invalidate('clients');
                 return res;
             }),
         delete: (id: string): Promise<void> =>
@@ -317,6 +330,7 @@ export const api = {
                 headers: getAuthHeaders()
             }).then(handleResponse).then(res => {
                 cacheManager.invalidate('patients');
+                cacheManager.invalidate('clients');
                 return res;
             }),
     },
@@ -546,11 +560,62 @@ export const api = {
     subscription: {
         getPlans: (): Promise<any[]> =>
             fetch(`${API_URL}/subscription/plans`).then(handleResponse), // Public endpoint
+        getCurrent: (): Promise<any> =>
+            fetch(`${API_URL}/subscription/current`, { headers: getAuthHeaders() }).then(handleResponse),
+        getUsage: (): Promise<any> =>
+            fetch(`${API_URL}/subscription/usage`, { headers: getAuthHeaders() }).then(handleResponse),
+        initializeUpgrade: (data: { planId: string; billingCycle: 'monthly' | 'yearly' }): Promise<any> =>
+            fetch(`${API_URL}/subscription/upgrade/initialize`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
         verifyRegistrationPayment: (data: { txRef?: string; transactionId?: string }) =>
             fetch(`${API_URL}/subscription/verify-registration-payment`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
+            }).then(handleResponse),
+    },
+
+    // Surgeries
+    surgeries: {
+        getAll: (): Promise<Surgery[]> =>
+            fetch(`${API_URL}/surgeries`, { headers: getAuthHeaders() }).then(handleResponse),
+        create: (data: { patientId: string; surgeonId: string; anesthetistId?: string; procedureId?: string; preMeds?: string; asaScore?: number }): Promise<Surgery> =>
+            fetch(`${API_URL}/surgeries`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        addInterval: (id: string, data: any): Promise<any> =>
+            fetch(`${API_URL}/surgeries/${id}/interval`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        complete: (id: string): Promise<Surgery> =>
+            fetch(`${API_URL}/surgeries/${id}/complete`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            }).then(handleResponse),
+    },
+
+    // Referrals
+    referrals: {
+        getAll: (): Promise<Referral[]> =>
+            fetch(`${API_URL}/referrals`, { headers: getAuthHeaders() }).then(handleResponse),
+        submit: (clinicId: string, data: any): Promise<any> =>
+            fetch(`${API_URL}/referrals/submit/${clinicId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            }).then(handleResponse),
+        updateStatus: (id: string, status: string): Promise<Referral> =>
+            fetch(`${API_URL}/referrals/${id}/status`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ status }),
             }).then(handleResponse),
     },
 
@@ -1033,6 +1098,22 @@ export const api = {
     },
     // Portal Data
     portal: {
+        uploadClientAvatar: (data: FormData | { avatarUrl: string }): Promise<any> => {
+            const isFormData = data instanceof FormData;
+            return fetch(`${API_URL}/portal/profile/avatar`, {
+                method: 'POST',
+                headers: isFormData ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : getAuthHeaders(),
+                body: isFormData ? data : JSON.stringify(data),
+            }).then(handleResponse);
+        },
+        uploadPetAvatar: (patientId: string, data: FormData | { avatarUrl: string }): Promise<any> => {
+            const isFormData = data instanceof FormData;
+            return fetch(`${API_URL}/portal/patient/${patientId}/avatar`, {
+                method: 'POST',
+                headers: isFormData ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : getAuthHeaders(),
+                body: isFormData ? data : JSON.stringify(data),
+            }).then(handleResponse);
+        },
         getDashboard: (): Promise<any> =>
             fetch(`${API_URL}/portal/dashboard`, { headers: getAuthHeaders() }).then(handleResponse),
         getDriveAuthUrl: (): Promise<{ url: string }> =>
@@ -1078,11 +1159,11 @@ export const api = {
                 method: 'POST',
                 headers: getAuthHeaders(),
             }).then(handleResponse),
-        signConsent: (id: string, signedBy: string): Promise<any> =>
+        signConsent: (id: string, signedBy: string, signatureDataUrl?: string): Promise<any> =>
             fetch(`${API_URL}/portal/consent/${id}/sign`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ signedBy }),
+                body: JSON.stringify({ signedBy, signatureDataUrl }),
             }).then(handleResponse),
         getAvailableProcedures: (): Promise<any> =>
             fetch(`${API_URL}/portal/appointments/available-procedures`, { headers: getAuthHeaders() }).then(handleResponse),
@@ -1229,5 +1310,8 @@ export const api = {
     },
     setCache: <T>(resource: string, data: T, params?: string, ttl?: number): void => {
         cacheManager.set(resource, data, params, ttl);
+    },
+    invalidateCache: (resource: string): void => {
+        cacheManager.invalidate(resource);
     }
 };

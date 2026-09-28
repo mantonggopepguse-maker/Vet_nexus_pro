@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { ChevronRight, Mail, Phone, Plus, Search, User } from 'lucide-react';
-import { Client } from '../../types';
+import { Client, Pet } from '../../types';
 
 interface ClientListProps {
     clients: Client[];
+    patients?: Pet[];
     isLoading?: boolean;
     onAddClient: () => void;
     onViewClient: (id: string) => void;
 }
 
-export const ClientList: React.FC<ClientListProps> = ({ clients, isLoading, onAddClient, onViewClient }) => {
+export const ClientList: React.FC<ClientListProps> = ({ clients, patients, isLoading, onAddClient, onViewClient }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredClients = clients.filter((client) =>
@@ -100,7 +101,14 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, isLoading, onAd
                                 </div>
 
                                 <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
-                                    <div className="text-sm text-slate-400">{client.patients?.length || 0} pets</div>
+                                    {(() => {
+                                        const count = (patients ? patients.filter((p) => p.ownerId === client.id).length : 0) || client.patients?.length || client.pets?.length || 0;
+                                        return (
+                                            <div className="text-sm font-semibold text-slate-500 bg-slate-100/80 px-3 py-1.5 rounded-xl">
+                                                {count} {count === 1 ? 'pet' : 'pets'}
+                                            </div>
+                                        );
+                                    })()}
                                     <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
                                         <ChevronRight className="w-5 h-5" />
                                     </div>

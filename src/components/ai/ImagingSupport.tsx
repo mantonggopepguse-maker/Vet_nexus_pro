@@ -1,20 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/apiService';
-import { Sparkles, Image as ImageIcon, FileText, AlertCircle, History, ArrowRight, X, Maximize2 } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, FileText, AlertCircle, History, ArrowRight, X, Maximize2, PawPrint } from 'lucide-react';
 import { toast } from 'sonner';
+import { Pet } from '../../types';
 
 interface ImagingSupportProps {
     patientId?: string;
+    patients?: Pet[];
 }
 
-const ImagingSupport: React.FC<ImagingSupportProps> = ({ patientId: initialPatientId }) => {
+const ImagingSupport: React.FC<ImagingSupportProps> = ({ patientId: initialPatientId, patients: initialPatients = [] }) => {
     const [patientId, setPatientId] = useState(initialPatientId || '');
+    const [patientList, setPatientList] = useState<Pet[]>(initialPatients);
     const [loading, setLoading] = useState(false);
     const [media, setMedia] = useState<any[]>([]);
     const [selectedMedia, setSelectedMedia] = useState<any>(null);
     const [analysis, setAnalysis] = useState<any>(null);
     const [comparisonMode, setComparisonMode] = useState(false);
     const [compareWith, setCompareWith] = useState<any>(null);
+
+    useEffect(() => {
+        if (!initialPatients || initialPatients.length === 0) {
+            api.patients.getAll().then(pts => setPatientList(pts || [])).catch(() => {});
+        } else {
+            setPatientList(initialPatients);
+        }
+    }, [initialPatients]);
+
+    const handleSelectPatient = (id: string) => {
+        setPatientId(id);
+        setSelectedMedia(null);
+        setAnalysis(null);
+        if (id) {
+            fetchPatientMedia(id);
+        } else {
+            setMedia([]);
+        }
+    };
 
     const fetchPatientMedia = async (id: string) => {
         try {
@@ -77,6 +99,23 @@ const ImagingSupport: React.FC<ImagingSupportProps> = ({ patientId: initialPatie
                             >
                                 Refresh
                             </button>
+                        </div>
+                        <div className="mb-4">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                <PawPrint className="w-3 h-3 text-amber-500" /> Patient
+                            </label>
+                            <select
+                                value={patientId}
+                                onChange={(e) => handleSelectPatient(e.target.value)}
+                                className="soft-input w-full p-2.5 text-xs font-semibold text-slate-800"
+                            >
+                                <option value="">-- Select Patient --</option>
+                                {patientList.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} ({p.species})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="space-y-3 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">

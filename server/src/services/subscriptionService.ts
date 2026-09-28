@@ -88,48 +88,52 @@ export const SUBSCRIPTION_PLANS = {
  * Initialize subscription plans in database
  */
 export async function initializeSubscriptionPlans(): Promise<void> {
-    // First, deactivate any old plans that are no longer in our definitions
-    const validPlanNames = Object.values(SUBSCRIPTION_PLANS).map(p => p.name);
-    await prisma.subscriptionPlan.updateMany({
-        where: {
-            name: { notIn: validPlanNames }
-        },
-        data: { isActive: false }
-    });
-
-    // Upsert current plans
-    for (const [key, plan] of Object.entries(SUBSCRIPTION_PLANS)) {
-        await prisma.subscriptionPlan.upsert({
-            where: { name: plan.name },
-            update: {
-                displayName: (plan as any).displayName,
-                priceMonthly: (plan as any).priceMonthly,
-                priceYearly: (plan as any).priceYearly,
-                flwPlanIdMonthly: (plan as any).flwPlanIdMonthly,
-                flwPlanIdYearly: (plan as any).flwPlanIdYearly,
-                maxClients: (plan as any).maxClients,
-                maxPatients: (plan as any).maxPatients,
-                maxStaff: (plan as any).maxStaff,
-                features: (plan as any).features,
-                isActive: true,
+    try {
+        // First, deactivate any old plans that are no longer in our definitions
+        const validPlanNames = Object.values(SUBSCRIPTION_PLANS).map(p => p.name);
+        await prisma.subscriptionPlan.updateMany({
+            where: {
+                name: { notIn: validPlanNames }
             },
-            create: {
-                name: (plan as any).name,
-                displayName: (plan as any).displayName,
-                priceMonthly: (plan as any).priceMonthly,
-                priceYearly: (plan as any).priceYearly,
-                flwPlanIdMonthly: (plan as any).flwPlanIdMonthly,
-                flwPlanIdYearly: (plan as any).flwPlanIdYearly,
-                currency: 'NGN',
-                maxClients: (plan as any).maxClients,
-                maxPatients: (plan as any).maxPatients,
-                maxStaff: (plan as any).maxStaff,
-                features: (plan as any).features,
-                isActive: true,
-            },
+            data: { isActive: false }
         });
+
+        // Upsert current plans
+        for (const [key, plan] of Object.entries(SUBSCRIPTION_PLANS)) {
+            await prisma.subscriptionPlan.upsert({
+                where: { name: plan.name },
+                update: {
+                    displayName: (plan as any).displayName,
+                    priceMonthly: (plan as any).priceMonthly,
+                    priceYearly: (plan as any).priceYearly,
+                    flwPlanIdMonthly: (plan as any).flwPlanIdMonthly,
+                    flwPlanIdYearly: (plan as any).flwPlanIdYearly,
+                    maxClients: (plan as any).maxClients,
+                    maxPatients: (plan as any).maxPatients,
+                    maxStaff: (plan as any).maxStaff,
+                    features: (plan as any).features,
+                    isActive: true,
+                },
+                create: {
+                    name: (plan as any).name,
+                    displayName: (plan as any).displayName,
+                    priceMonthly: (plan as any).priceMonthly,
+                    priceYearly: (plan as any).priceYearly,
+                    flwPlanIdMonthly: (plan as any).flwPlanIdMonthly,
+                    flwPlanIdYearly: (plan as any).flwPlanIdYearly,
+                    currency: 'NGN',
+                    maxClients: (plan as any).maxClients,
+                    maxPatients: (plan as any).maxPatients,
+                    maxStaff: (plan as any).maxStaff,
+                    features: (plan as any).features,
+                    isActive: true,
+                },
+            });
+        }
+        console.log('Subscription plans initialized (old plans deactivated)');
+    } catch (error) {
+        console.warn('Subscription plans initialization skipped (database connection pending):', error instanceof Error ? error.message : error);
     }
-    console.log('Subscription plans initialized (old plans deactivated)');
 }
 
 /**

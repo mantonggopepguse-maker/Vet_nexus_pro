@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -110,9 +109,112 @@
     bottom: 8rem;
     width: 24rem;
     height: 24rem;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 72%);
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.08) 0%, transparent 72%);
   }
 }
+
+/* Pet Owner Portal Glassmorphism & Neomorphism Utility Classes */
+.portal-glass-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 36px -8px rgba(15, 118, 110, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.portal-glass-header {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(204, 251, 241, 0.6);
+}
+
+.portal-glass-nav {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 20px 48px -12px rgba(13, 148, 136, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.portal-neo-card {
+  background: #ffffff;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 10px 10px 28px rgba(15, 118, 110, 0.06), -8px -8px 24px rgba(255, 255, 255, 0.95);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portal-neo-card:hover {
+  box-shadow: 14px 14px 32px rgba(15, 118, 110, 0.1), -10px -10px 28px rgba(255, 255, 255, 1);
+  transform: translateY(-2px);
+}
+
+.portal-neo-inset {
+  background: #F8FAFC;
+  box-shadow: inset 3px 3px 8px rgba(15, 118, 110, 0.05), inset -3px -3px 8px rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.portal-btn-teal {
+  background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(13, 148, 136, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portal-btn-teal:hover {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  box-shadow: 0 12px 28px -4px rgba(13, 148, 136, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.portal-btn-teal:active {
+  transform: scale(0.96);
+  box-shadow: 0 4px 12px -2px rgba(13, 148, 136, 0.4);
+}
+
+.portal-btn-gold {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portal-btn-gold:hover {
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  box-shadow: 0 12px 28px -4px rgba(245, 158, 11, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.portal-btn-gold:active {
+  transform: scale(0.96);
+  box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.4);
+}
+
+.portal-welcome-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.4) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  box-shadow: 0 10px 30px -6px rgba(245, 158, 11, 0.1), 0 4px 12px rgba(0, 0, 0, 0.02);
+  border-radius: 24px;
+}
+
+.portal-gold-glow {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0) 70%);
+}
+
+.portal-teal-glow {
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.15) 0%, rgba(13, 148, 136, 0) 70%);
+}
+
+.portal-rose-glow {
+  background: radial-gradient(circle, rgba(225, 29, 72, 0.15) 0%, rgba(225, 29, 72, 0) 70%);
+}
+
+
 
 .no-scrollbar {
   scrollbar-width: none;
@@ -1285,21 +1387,79 @@
     print-color-adjust: exact !important;
   }
 
+  /* Disable subpixel antialiasing for crisper print output */
+  * {
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+  }
+
+  /* Force all printable text to pure black for maximum print contrast */
+  .printable-area,
+  .printable-area * {
+    color: #000000 !important;
+  }
+
+  /* A4 / Standard print: ensure readable font sizes */
+  .printable-area .print-area-inner {
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+  }
+
+  .printable-area .print-area-inner h1 {
+    font-size: 20pt !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+  }
+
+  .printable-area .print-area-inner h2 {
+    font-size: 16pt !important;
+    font-weight: 700 !important;
+  }
+
+  .printable-area .print-area-inner h3 {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+  }
+
+  .printable-area .print-area-inner h4 {
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+  }
+
+  .printable-area .print-area-inner table th {
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+  }
+
+  .printable-area .print-area-inner table td {
+    font-size: 11pt !important;
+    font-weight: 600 !important;
+  }
+
+  .printable-area .print-area-inner p,
+  .printable-area .print-area-inner span {
+    font-size: 11pt !important;
+  }
+
   /* ═══ Thermal Printer Mode (80mm / 58mm) ═══ */
   .thermal-print .print-area-inner {
     padding: 3mm 4mm !important;
+    font-weight: 700 !important;
   }
 
   .thermal-print .thermal-header {
     margin-bottom: 3mm !important;
   }
   .thermal-print .thermal-header h1 {
-    font-size: 13px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
     margin-bottom: 1px !important;
   }
   .thermal-print .thermal-header p {
-    font-size: 8px !important;
-    line-height: 1.2 !important;
+    font-size: 9px !important;
+    line-height: 1.3 !important;
+    font-weight: 600 !important;
   }
 
   .thermal-print .thermal-stack > * {
@@ -1312,11 +1472,13 @@
   }
 
   .thermal-print .thermal-title {
-    font-size: 12px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
   }
   .thermal-print .thermal-title-sm {
-    font-size: 9px !important;
+    font-size: 10px !important;
     margin-bottom: 1mm !important;
+    font-weight: 700 !important;
   }
 
   .thermal-print .thermal-footer-grid {
@@ -1327,8 +1489,9 @@
 
   .thermal-print table th,
   .thermal-print table td {
-    font-size: 8px !important;
+    font-size: 9px !important;
     padding: 1mm 0 !important;
+    font-weight: 600 !important;
   }
 
   .thermal-print table {
@@ -1336,7 +1499,8 @@
   }
 
   .thermal-print .thermal-table-label {
-    font-size: 7px !important;
+    font-size: 8px !important;
+    font-weight: 600 !important;
   }
 
   .thermal-print .thermal-greeting {
@@ -1344,19 +1508,22 @@
     padding-top: 2mm !important;
   }
   .thermal-print .thermal-greeting p {
-    font-size: 8px !important;
+    font-size: 9px !important;
   }
 
   .thermal-print .thermal-total {
     font-size: 13px !important;
+    font-weight: 700 !important;
   }
   .thermal-print .thermal-amount {
-    font-size: 10px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
   }
 
   .thermal-print .thermal-badge {
-    font-size: 7px !important;
+    font-size: 8px !important;
     padding: 0.5mm 1.5mm !important;
+    font-weight: 700 !important;
   }
 
   .thermal-print .thermal-mb {

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { CalendarDays, Plus, User, Phone, Mail, MapPin, Save, ChevronDown, List, Filter, Edit, Trash2, CheckCircle, XCircle, Clock as ClockIcon, Zap } from 'lucide-react';
-import { Client, Procedure, ClinicSettings, Appointment as AppointmentType, AppointmentStatus } from '../../types';
+import { CalendarDays, Plus, User, Phone, Mail, MapPin, Save, ChevronDown, List, Filter, Edit, Trash2, CheckCircle, XCircle, Clock as ClockIcon, Zap, PawPrint } from 'lucide-react';
+import { Client, Procedure, ClinicSettings, Appointment as AppointmentType, AppointmentStatus, Pet } from '../../types';
 import { formatDateOnly, toLocalDateInputValue } from '../../utils/date';
 
 interface AppointmentProps {
   clients: Client[];
+  patients?: Pet[];
   procedures: Procedure[];
   settings: ClinicSettings;
   appointments: AppointmentType[];
@@ -13,7 +14,7 @@ interface AppointmentProps {
   onDelete: (id: string) => void;
 }
 
-export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, settings, appointments, onSave, onUpdate, onDelete }) => {
+export const Appointment: React.FC<AppointmentProps> = ({ clients, patients = [], procedures, settings, appointments, onSave, onUpdate, onDelete }) => {
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [selectedDate, setSelectedDate] = useState(toLocalDateInputValue());
   const [filterStatus, setFilterStatus] = useState<AppointmentStatus | 'all'>('all');
@@ -22,6 +23,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
 
   // Form state for new/edit appointments
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedProcedureId, setSelectedProcedureId] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('');
@@ -39,6 +41,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
   });
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
+  const clientPatients = patients.filter(p => p.ownerId === selectedClientId);
   const selectedProcedure = procedures.find(p => p.id === selectedProcedureId);
   const activeProcedures = procedures.filter(p => p.status === 'Active');
 
@@ -69,6 +72,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
 
     const appointmentData = {
       clientId: isManualClient ? null : selectedClientId,
+      patientId: (!isManualClient && selectedPatientId) ? selectedPatientId : undefined,
       manualClient: isManualClient ? manualClient : null,
       procedureId: selectedProcedureId,
       date: appointmentDate,
@@ -92,6 +96,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
 
   const resetForm = () => {
     setSelectedClientId('');
+    setSelectedPatientId('');
     setSelectedProcedureId('');
     setAppointmentDate('');
     setAppointmentTime('');
@@ -104,6 +109,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
   const handleEdit = (appointment: AppointmentType) => {
     setEditingAppointment(appointment);
     setSelectedClientId(appointment.clientId || '');
+    setSelectedPatientId(appointment.patientId || '');
     setSelectedProcedureId(appointment.procedureId);
     setAppointmentDate(appointment.date);
     setAppointmentTime(appointment.time);
@@ -245,10 +251,31 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
                               )}
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex items-center gap-2">
+                            {appointment.status === 'Pending' && (
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(appointment, 'Confirmed')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold hover:bg-emerald-200 transition"
+                                title="Confirm Appointment Request"
+                              >
+                                Confirm
+                              </button>
+                            )}
+                            {appointment.status === 'Confirmed' && (
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(appointment, 'Completed')}
+                                className="px-2.5 py-1 rounded-lg bg-teal-100 text-teal-800 text-xs font-bold hover:bg-teal-200 transition"
+                                title="Mark Completed"
+                              >
+                                Complete
+                              </button>
+                            )}
                             <button
+                              type="button"
                               onClick={() => handleEdit(appointment)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4" />
@@ -256,7 +283,7 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
                             <select
                               value={appointment.status}
                               onChange={(e) => handleStatusChange(appointment, e.target.value as AppointmentStatus)}
-                              className="text-xs p-1 border rounded"
+                              className="text-xs px-2 py-1 border border-slate-200 rounded-lg font-bold bg-slate-50 text-slate-700 outline-none focus:border-teal-400"
                             >
                               <option value="Pending">Pending</option>
                               <option value="Confirmed">Confirmed</option>
@@ -264,8 +291,9 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
                               <option value="Cancelled">Cancelled</option>
                             </select>
                             <button
+                              type="button"
                               onClick={() => onDelete(appointment.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded"
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -380,15 +408,41 @@ export const Appointment: React.FC<AppointmentProps> = ({ clients, procedures, s
               </div>
 
               {!isManualClient ? (
-                <div className="space-y-2">
-                  <select
-                    value={selectedClientId}
-                    onChange={(e) => setSelectedClientId(e.target.value)}
-                    className="w-full soft-input px-3 py-2 text-sm"
-                  >
-                    <option value="">Select Client</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-                  </select>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase">Client</label>
+                    <select
+                      value={selectedClientId}
+                      onChange={(e) => {
+                        setSelectedClientId(e.target.value);
+                        setSelectedPatientId('');
+                      }}
+                      className="w-full soft-input px-3 py-2 text-sm"
+                    >
+                      <option value="">Select Client</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+                    </select>
+                  </div>
+
+                  {selectedClientId && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                        <PawPrint className="w-3.5 h-3.5 text-teal-600" /> Patient / Pet (Optional)
+                      </label>
+                      <select
+                        value={selectedPatientId}
+                        onChange={(e) => setSelectedPatientId(e.target.value)}
+                        className="w-full soft-input px-3 py-2 text-sm"
+                      >
+                        <option value="">-- General / No Specific Pet --</option>
+                        {clientPatients.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.species}{p.breed ? ` - ${p.breed}` : ''})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3 p-3 bg-slate-50 rounded-lg">

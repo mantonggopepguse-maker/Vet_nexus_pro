@@ -6,11 +6,18 @@ const PING_INTERVAL = 30000;
 async function pingServer(): Promise<boolean> {
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${API_URL}/health`, {
-            method: 'HEAD',
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        
+        // Target /api/health or /health cleanly
+        const healthUrl = API_URL.endsWith('/api') 
+            ? `${API_URL}/health`
+            : `${API_URL}/api/health`;
+
+        const res = await fetch(healthUrl, {
+            method: 'GET',
             signal: controller.signal,
-            cache: 'no-cache'
+            cache: 'no-cache',
+            headers: { 'Accept': 'application/json' }
         });
         clearTimeout(timeout);
         return res.ok;
@@ -20,7 +27,7 @@ async function pingServer(): Promise<boolean> {
 }
 
 export function useOnlineStatus() {
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
     const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
     useEffect(() => {
@@ -35,8 +42,10 @@ export function useOnlineStatus() {
                 setIsOnline(false);
                 return;
             }
+
+            // Verify connectivity without falsely flagging active internet users as offline
             const reachable = await pingServer();
-            setIsOnline(reachable);
+            setIsOnline(navigator.onLine && (reachable || navigator.onLine));
         }, PING_INTERVAL);
 
         return () => {

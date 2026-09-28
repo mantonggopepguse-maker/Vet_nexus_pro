@@ -88,11 +88,39 @@ export const ShiftTimetable: React.FC<ShiftTimetableProps> = ({ settings }) => {
         }
     };
 
+    const [deleteShiftId, setDeleteShiftId] = useState<string | null>(null);
+
+    const handleExportRoster = () => {
+        if (shifts.length === 0) {
+            toast.info("No scheduled shifts to export for this week");
+            return;
+        }
+        const headers = ["Staff Name", "Date", "Shift Type", "Start Time", "End Time", "Notes"];
+        const rows = shifts.map(s => [
+            `"${s.staff?.name || 'Staff'}"`,
+            `"${new Date(s.startTime).toLocaleDateString()}"`,
+            `"${s.type}"`,
+            `"${new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`,
+            `"${new Date(s.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`,
+            `"${(s.notes || '').replace(/"/g, '""')}"`
+        ]);
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        const startStr = weekDates[0].toISOString().split('T')[0];
+        link.setAttribute("download", `shift_roster_${startStr}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("Roster exported as CSV");
+    };
+
     const handleDeleteShift = async (id: string) => {
-        if (!confirm("Remove this shift?")) return;
         try {
             await api.shifts.delete(id);
             toast.success("Shift removed");
+            setDeleteShiftId(null);
             loadData();
         } catch (error) {
             toast.error("Failed to delete shift");
@@ -132,7 +160,11 @@ export const ShiftTimetable: React.FC<ShiftTimetableProps> = ({ settings }) => {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="p-3 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-amber-200 text-slate-500 transition-all">
+                    <button 
+                        onClick={handleExportRoster}
+                        title="Export Weekly Roster (CSV)"
+                        className="p-3 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-amber-200 text-slate-500 hover:text-amber-600 transition-all"
+                    >
                         <Download className="w-5 h-5" />
                     </button>
                     <button 
@@ -330,12 +362,37 @@ export const ShiftTimetable: React.FC<ShiftTimetableProps> = ({ settings }) => {
 
                             <div className="flex gap-3 pt-6">
                                 {editingShift?.id && (
-                                    <button 
-                                        onClick={() => handleDeleteShift(editingShift.id!)}
-                                        className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all border border-rose-100"
-                                    >
-                                        <Trash2 className="w-6 h-6" />
-                                    </button>
+                                    deleteShiftId === editingShift.id ? (
+                                        <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 p-2 rounded-2xl">
+                                            <span className="text-xs font-bold text-rose-700">Remove?</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    handleDeleteShift(editingShift.id!);
+                                                    setIsModalOpen(false);
+                                                }}
+                                                className="px-3 py-2 bg-rose-600 text-white rounded-xl text-xs font-black hover:bg-rose-700 transition"
+                                            >
+                                                Yes
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteShiftId(null)}
+                                                className="px-3 py-2 bg-white text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition border border-slate-200"
+                                            >
+                                                No
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setDeleteShiftId(editingShift.id!)}
+                                            className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-all border border-rose-100"
+                                            title="Remove Shift"
+                                        >
+                                            <Trash2 className="w-6 h-6" />
+                                        </button>
+                                    )
                                 )}
                                 <button 
                                     onClick={handleSaveShift}

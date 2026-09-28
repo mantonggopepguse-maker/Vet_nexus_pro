@@ -1,10 +1,10 @@
 import Dexie, { Table } from 'dexie';
 
 export interface LocalTreatment {
-    id?: string;
+    id?: string | number;
     clientId: string;
     patientId: string;
-    description: string;
+    description?: string;
     diagnosis?: string;
     treatmentPlan?: string;
     medications: any[];

@@ -68,15 +68,22 @@ const withPortalAccess = (client: any) => {
     const latestInvite = client.portalInvites?.[0] || null;
     const portalConversationCount = client._count?.aiConversations ?? 0;
     const passwordSet = !!client.password;
+    const isInitialPassword = !!(client.portalPasswordMustChange && client.initialPassword);
+    const initialPassword = isInitialPassword ? client.initialPassword : null;
+    const isPasswordChangedByUser = passwordSet && !client.portalPasswordMustChange && !client.initialPassword;
     const { password: _password, ...safeClient } = client;
 
     return {
         ...safeClient,
         passwordSet,
+        initialPassword,
+        isPasswordChangedByUser,
         portalAccess: {
             enabled: !!client.isPortalEnabled,
             lastLogin: client.lastLogin || null,
             passwordMustChange: !!client.portalPasswordMustChange,
+            initialPassword,
+            isPasswordChangedByUser,
             portalConversationCount,
             invite: latestInvite
                 ? {
@@ -104,6 +111,7 @@ const findClientForUser = async (req: AuthRequest, clientId: string) => {
             ? { id: clientId }
             : { id: clientId, clinicId: req.user?.clinicId as string },
         include: {
+            patients: true,
             portalInvites: {
                 orderBy: { createdAt: 'desc' },
                 take: 1,
@@ -174,7 +182,7 @@ const createPortalInvite = async (params: {
         },
     });
 
-    const appUrl = (process.env.APP_URL || 'https://vetnexus.vetnexuspro.com').replace(/\/$/, '');
+    const appUrl = (process.env.APP_URL || 'https://app.vetnexuspro.com').replace(/\/$/, '');
     const inviteLink = `${appUrl}/portal/invite/${invite.token}`;
 
     const emailDelivery = await sendPortalInviteEmail({
@@ -201,6 +209,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
             skip,
             orderBy: { createdAt: 'desc' },
             include: {
+                patients: true,
                 portalInvites: {
                     orderBy: { createdAt: 'desc' },
                     take: 1,
@@ -378,6 +387,7 @@ router.post('/', authenticate, checkResourceLimit('clients'), async (req: AuthRe
                         where: { id: client.id },
                         data: {
                             password: hashedPassword,
+                            initialPassword: temporaryPassword,
                             isPortalEnabled: true,
                             portalPasswordMustChange: true,
                         },
@@ -610,12 +620,13 @@ router.post('/:id/portal/credentials', authenticate, async (req: AuthRequest, re
             where: { id: client.id },
             data: {
                 password: hashedPassword,
+                initialPassword: temporaryPassword,
                 isPortalEnabled: true,
                 portalPasswordMustChange: true,
             },
         });
 
-        const appUrl = (process.env.APP_URL || 'https://vetnexus.vetnexuspro.com').replace(/\/$/, '');
+        const appUrl = (process.env.APP_URL || 'https://app.vetnexuspro.com').replace(/\/$/, '');
         const emailDelivery = await sendPortalCredentialsEmail({
             to: normalizedEmail,
             clientName: `${client.firstName} ${client.lastName}`,
@@ -765,7 +776,12 @@ router.post('/:id/portal/access/revoke', authenticate, async (req: AuthRequest, 
         await prisma.$transaction([
             prisma.client.update({
                 where: { id: existing.id },
-                data: { isPortalEnabled: false },
+                data: {
+                    isPortalEnabled: false,
+                    password: null,
+                    initialPassword: null,
+                    portalPasswordMustChange: false,
+                },
             }),
             prisma.portalInvite.updateMany({
                 where: {

@@ -98,6 +98,20 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
     const [showLabRequestForm, setShowLabRequestForm] = useState(false);
     const [labRequestForm, setLabRequestForm] = useState({ testName: '', sampleType: '', priority: 'Routine', notes: '' });
 
+    const [noteModal, setNoteModal] = useState<{ isOpen: boolean; treatmentId: string; note: string; isSubmitting: boolean }>({
+        isOpen: false,
+        treatmentId: '',
+        note: '',
+        isSubmitting: false
+    });
+
+    const [consentModal, setConsentModal] = useState<{ isOpen: boolean; type: string; content: string; isSubmitting: boolean }>({
+        isOpen: false,
+        type: 'General Surgical Consent',
+        content: 'I authorize the clinic to perform the procedure described.',
+        isSubmitting: false
+    });
+
     useEffect(() => {
         loadPatientDetails();
     }, [patientId]);
@@ -180,16 +194,52 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
         }
     };
 
-    const handleAddNote = async (e: React.MouseEvent, treatmentId: string) => {
+    const handleAddNote = (e: React.MouseEvent, treatmentId: string) => {
         e.stopPropagation();
-        const note = window.prompt('Add a daily note:');
-        if (!note) return;
+        setNoteModal({ isOpen: true, treatmentId, note: '', isSubmitting: false });
+    };
+
+    const submitDailyNote = async () => {
+        if (!noteModal.note.trim()) {
+            toast.error('Please enter note content');
+            return;
+        }
+        setNoteModal(prev => ({ ...prev, isSubmitting: true }));
         try {
-            await api.treatments.addNote(treatmentId, note);
+            await api.treatments.addNote(noteModal.treatmentId, noteModal.note.trim());
             await loadPatientDetails();
-            toast.success('Note added');
+            toast.success('Daily note added');
+            setNoteModal({ isOpen: false, treatmentId: '', note: '', isSubmitting: false });
         } catch (error) {
             toast.error('Failed to add note');
+            setNoteModal(prev => ({ ...prev, isSubmitting: false }));
+        }
+    };
+
+    const submitConsentForm = async () => {
+        if (!consentModal.type.trim() || !consentModal.content.trim()) {
+            toast.error('Form type and content are required');
+            return;
+        }
+        setConsentModal(prev => ({ ...prev, isSubmitting: true }));
+        try {
+            await api.consent.create({
+                patientId,
+                clientId: patient.ownerId,
+                type: consentModal.type.trim(),
+                content: consentModal.content.trim()
+            });
+            await loadPatientDetails();
+            toast.success('Consent form generated and sent');
+            setConsentModal({
+                isOpen: false,
+                type: 'General Surgical Consent',
+                content: 'I authorize the clinic to perform the procedure described.',
+                isSubmitting: false
+            });
+        } catch (error) {
+            toast.error('Failed to create form');
+            setConsentModal(prev => ({ ...prev, isSubmitting: false }));
         }
     };
 
@@ -510,20 +560,13 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                                     <p className="text-slate-500 mt-1">Forms sent to the owner for approval.</p>
                                 </div>
                                 <button
-                                    onClick={async () => {
-                                        const type = window.prompt('Form type:', 'General Surgical Consent');
-                                        if (!type) return;
-                                        const content = window.prompt('Form content:', 'I authorize the clinic to perform the procedure described.');
-                                        if (!content) return;
-                                        try {
-                                            await api.consent.create({ patientId, clientId: patient.ownerId, type, content });
-                                            loadPatientDetails();
-                                            toast.success('Consent form sent');
-                                        } catch (error) {
-                                            toast.error('Failed to create form');
-                                        }
-                                    }}
-                                    className="px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold flex items-center gap-2"
+                                    onClick={() => setConsentModal({
+                                        isOpen: true,
+                                        type: 'General Surgical Consent',
+                                        content: 'I authorize the clinic to perform the procedure described.',
+                                        isSubmitting: false
+                                    })}
+                                    className="px-5 py-3 rounded-2xl bg-teal-600 text-white font-semibold flex items-center gap-2 hover:bg-teal-700 transition"
                                 >
                                     <Plus className="w-4 h-4" /> New form
                                 </button>
@@ -902,6 +945,112 @@ export const PatientDetails: React.FC<PatientDetailsProps> = ({
                     content={generatedHomeCare}
                     onClose={() => setGeneratedHomeCare(null)}
                 />
+            )}
+
+            {/* Add Daily Note Modal */}
+            {noteModal.isOpen && (
+                <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="client-panel w-full max-w-lg overflow-hidden animate-scale-up">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Add Daily Clinical Note</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Append daily observation to treatment record</p>
+                            </div>
+                            <button
+                                onClick={() => setNoteModal({ isOpen: false, treatmentId: '', note: '', isSubmitting: false })}
+                                className="p-2 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <textarea
+                                value={noteModal.note}
+                                onChange={(e) => setNoteModal(prev => ({ ...prev, note: e.target.value }))}
+                                rows={4}
+                                placeholder="Enter daily observation, patient progress, or response to medication..."
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 outline-none resize-none"
+                                autoFocus
+                            />
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setNoteModal({ isOpen: false, treatmentId: '', note: '', isSubmitting: false })}
+                                    className="px-5 py-2.5 rounded-2xl bg-slate-100 text-slate-600 font-semibold text-sm hover:bg-slate-200 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={noteModal.isSubmitting}
+                                    onClick={submitDailyNote}
+                                    className="px-6 py-2.5 rounded-2xl bg-teal-600 text-white font-semibold text-sm hover:bg-teal-700 transition shadow-sm disabled:opacity-50"
+                                >
+                                    {noteModal.isSubmitting ? 'Saving...' : 'Save Note'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Consent Form Modal */}
+            {consentModal.isOpen && (
+                <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="client-panel w-full max-w-xl overflow-hidden animate-scale-up">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">New Surgical / Clinical Consent Form</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Send a digital consent form to the pet owner for approval</p>
+                            </div>
+                            <button
+                                onClick={() => setConsentModal(prev => ({ ...prev, isOpen: false }))}
+                                className="p-2 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Form Title / Type</label>
+                                <input
+                                    type="text"
+                                    value={consentModal.type}
+                                    onChange={(e) => setConsentModal(prev => ({ ...prev, type: e.target.value }))}
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-teal-500 outline-none"
+                                    placeholder="e.g. General Surgical Consent, Dental Consent, Anesthesia Authorization"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Authorization Terms & Text</label>
+                                <textarea
+                                    value={consentModal.content}
+                                    onChange={(e) => setConsentModal(prev => ({ ...prev, content: e.target.value }))}
+                                    rows={5}
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 outline-none resize-none leading-relaxed"
+                                    placeholder="I authorize the clinic to perform the procedure described..."
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setConsentModal(prev => ({ ...prev, isOpen: false }))}
+                                    className="px-5 py-2.5 rounded-2xl bg-slate-100 text-slate-600 font-semibold text-sm hover:bg-slate-200 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={consentModal.isSubmitting}
+                                    onClick={submitConsentForm}
+                                    className="px-6 py-2.5 rounded-2xl bg-teal-600 text-white font-semibold text-sm hover:bg-teal-700 transition shadow-sm disabled:opacity-50"
+                                >
+                                    {consentModal.isSubmitting ? 'Sending...' : 'Send to Owner'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

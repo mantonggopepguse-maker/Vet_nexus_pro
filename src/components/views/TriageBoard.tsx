@@ -78,6 +78,14 @@ export const TriageBoard: React.FC = () => {
         }
     };
 
+    const handleStepNextStatus = async (patientId: string, currentStatus: TriageStatus) => {
+        let nextStatus: TriageStatus = 'NONE';
+        if (currentStatus === 'STABLE') nextStatus = 'URGENT';
+        else if (currentStatus === 'URGENT') nextStatus = 'CRITICAL';
+        else if (currentStatus === 'CRITICAL') nextStatus = 'NONE';
+        await handleUpdateStatus(patientId, nextStatus);
+    };
+
     const getWaitTime = (startTime: string) => {
         if (!startTime) return '0m';
         const start = new Date(startTime).getTime();
@@ -166,7 +174,11 @@ export const TriageBoard: React.FC = () => {
                                     </button>
                                 )}
                                 
-                                <button className="p-3 bg-white border border-slate-100 rounded-2xl text-amber-500 hover:bg-amber-50 hover:border-amber-100 transition-all shadow-sm group-hover:scale-110">
+                                <button 
+                                    onClick={() => handleStepNextStatus(patient.id, status)}
+                                    className="p-3 bg-white border border-slate-100 rounded-2xl text-amber-500 hover:bg-amber-50 hover:border-amber-100 transition-all shadow-sm group-hover:scale-110"
+                                    title={status === 'STABLE' ? 'Escalate to Urgent' : status === 'URGENT' ? 'Escalate to Critical' : 'Complete Triage'}
+                                >
                                     <ArrowRight size={16} />
                                 </button>
                             </div>

@@ -10,8 +10,11 @@ import {
     User,
     CreditCard,
     FileSpreadsheet,
-    Download
+    Download,
+    RefreshCw,
+    RotateCcw
 } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 import { toast } from 'sonner';
 import { ClinicSettings, User as UserType } from '../../types';
 import { api } from '../../services/apiService';
@@ -28,18 +31,26 @@ interface InvoiceItem {
     unitPrice: number;
 }
 
+const generateAutoInvoiceNumber = (type: 'INVOICE' | 'RECEIPT') => {
+    const prefix = type === 'RECEIPT' ? 'REC' : 'INV';
+    const dateStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 8);
+    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+    return `${prefix}-${dateStr}-${randomSeq}`;
+};
+
 export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
     const [invoiceType, setInvoiceType] = useState<'INVOICE' | 'RECEIPT'>('INVOICE');
     const [clientName, setClientName] = useState('');
-    const [invoiceNumber, setInvoiceNumber] = useState('');
+    const [invoiceNumber, setInvoiceNumber] = useState(() => generateAutoInvoiceNumber('INVOICE'));
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [items, setItems] = useState<InvoiceItem[]>([
-        { id: Math.random().toString(36).substr(2, 9), description: '', qty: 1, unitPrice: 0 }
+        { id: Math.random().toString(36).slice(2, 11), description: '', qty: 1, unitPrice: 0 }
     ]);
     const [discount, setDiscount] = useState(0);
     const [amountPaid, setAmountPaid] = useState(0);
     const [saleBy, setSaleBy] = useState(user?.name || '');
     const [showPreview, setShowPreview] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Load from localStorage on mount
     React.useEffect(() => {
@@ -51,9 +62,9 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                 const draft = JSON.parse(savedDraft);
                 setInvoiceType(draft.invoiceType || 'INVOICE');
                 setClientName(draft.clientName || '');
-                setInvoiceNumber(draft.invoiceNumber || '');
+                setInvoiceNumber(draft.invoiceNumber || generateAutoInvoiceNumber(draft.invoiceType || 'INVOICE'));
                 setDate(draft.date || new Date().toISOString().split('T')[0]);
-                setItems(draft.items || [{ id: Math.random().toString(36).substr(2, 9), description: '', qty: 1, unitPrice: 0 }]);
+                setItems(draft.items || [{ id: Math.random().toString(36).slice(2, 11), description: '', qty: 1, unitPrice: 0 }]);
                 setDiscount(draft.discount || 0);
                 setAmountPaid(draft.amountPaid || 0);
                 if (draft.saleBy) setSaleBy(draft.saleBy);
@@ -80,8 +91,25 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
         localStorage.setItem(draftKey, JSON.stringify(draft));
     }, [invoiceType, clientName, invoiceNumber, date, items, discount, amountPaid, saleBy, user]);
 
+    const handleTypeChange = (newType: 'INVOICE' | 'RECEIPT') => {
+        setInvoiceType(newType);
+        setInvoiceNumber(generateAutoInvoiceNumber(newType));
+    };
+
+    const resetInvoiceForm = () => {
+        setClientName('');
+        setItems([{ id: Math.random().toString(36).slice(2, 11), description: '', qty: 1, unitPrice: 0 }]);
+        setDiscount(0);
+        setAmountPaid(0);
+        setInvoiceNumber(generateAutoInvoiceNumber(invoiceType));
+        if (user) {
+            const draftKey = `vet_nexus_free_invoice_draft_${user.clinicId}_${user.id}`;
+            localStorage.removeItem(draftKey);
+        }
+    };
+
     const addItem = () => {
-        setItems([...items, { id: Math.random().toString(36).substr(2, 9), description: '', qty: 1, unitPrice: 0 }]);
+        setItems([...items, { id: Math.random().toString(36).slice(2, 11), description: '', qty: 1, unitPrice: 0 }]);
     };
 
     const removeItem = (id: string) => {
@@ -98,10 +126,25 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
     const total = Math.max(0, subtotal - discount);
     const balanceDue = Math.max(0, total - amountPaid);
 
-    const [isSaving, setIsSaving] = useState(false);
-
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleDownloadPdf = () => {
+        const element = document.getElementById('free-invoice-printable');
+        if (!element) {
+            toast.error('Printable document not available');
+            return;
+        }
+        toast.info('Generating PDF document...');
+        const opt = {
+            margin: [0.3, 0.3, 0.3, 0.3],
+            filename: `${invoiceType}_${(clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_')}_${invoiceNumber || 'Draft'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
     };
 
     const handleSave = async () => {
@@ -110,26 +153,29 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
             return;
         }
 
+        const finalInvoiceNum = invoiceNumber.trim() || generateAutoInvoiceNumber(invoiceType);
+
         setIsSaving(true);
         try {
             await api.sales.create({
                 type: invoiceType,
-                clientName,
-                invoiceNumber,
+                clientName: clientName.trim(),
+                invoiceNumber: finalInvoiceNum,
                 amountPaid,
                 balanceDue,
-                issuerName: saleBy,
+                issuerName: saleBy || user?.name || 'Staff',
                 subtotal,
                 discount,
                 total,
                 items: items.map(item => ({
-                    description: item.description,
-                    quantity: item.qty,
-                    pricePerUnit: item.unitPrice
+                    description: item.description.trim() || 'General Service',
+                    quantity: item.qty || 1,
+                    pricePerUnit: item.unitPrice || 0
                 }))
             });
-            toast.success(`${invoiceType} saved successfully to history!`);
+            toast.success(`${invoiceType} #${finalInvoiceNum} saved to history! Form reset for next entry.`);
             setShowPreview(false);
+            resetInvoiceForm();
         } catch (error: any) {
             toast.error(error?.data?.details || error?.message || 'Failed to save to history');
         } finally {
@@ -175,8 +221,8 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                                     <Printer className="w-4 h-4" /> Print
                                 </button>
                                 <button
-                                    onClick={handlePrint}
-                                    className="bg-white text-slate-700 border border-slate-200 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 shadow-sm transition-all"
+                                    onClick={handleDownloadPdf}
+                                    className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-teal-700 shadow-lg shadow-teal-200 transition-all"
                                 >
                                     <Download className="w-4 h-4" /> Download PDF
                                 </button>
@@ -186,10 +232,10 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                 </div>
 
                 {/* Printable Paper Preview */}
-                <div className="printable-area bg-white p-12 md:p-20 shadow-2xl rounded-sm min-h-[1123px] relative print:p-10 print:shadow-none print:rounded-none max-w-4xl mx-auto">
+                <div id="free-invoice-printable" className="printable-area bg-white p-12 md:p-20 shadow-2xl rounded-sm min-h-[1123px] relative print:p-10 print:shadow-none print:rounded-none max-w-4xl mx-auto">
                     {/* Header */}
                     <div className="text-center mb-16">
-                        <h1 className="text-4xl font-black text-emerald-800 tracking-tight mb-2">{settings.name || 'Vet Nexus'}</h1>
+                        <h1 className="text-4xl font-bold text-emerald-800 print:text-black tracking-tight mb-2">{settings.name || 'Vet Nexus'}</h1>
                         <p className="text-slate-500 font-medium">{settings.address || 'Address not set'}</p>
                         <p className="text-slate-500 font-medium">{settings.email} | {settings.phone}</p>
                     </div>
@@ -197,11 +243,11 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                     {/* Billed To / Type */}
                     <div className="flex justify-between items-start mb-16">
                         <div>
-                            <h3 className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-2">BILLED TO</h3>
-                            <p className="text-xl font-black text-slate-800">{clientName || 'Valued Client'}</p>
+                            <h3 className="text-xs font-bold text-emerald-600 print:text-black uppercase tracking-widest mb-2">BILLED TO</h3>
+                            <p className="text-xl font-bold text-slate-800 print:text-black">{clientName || 'Valued Client'}</p>
                         </div>
                         <div className="text-right">
-                            <h2 className="text-4xl font-black text-emerald-700 tracking-tight italic mb-2">{invoiceType}</h2>
+                            <h2 className="text-4xl font-bold text-emerald-700 print:text-black tracking-tight italic mb-2">{invoiceType}</h2>
                             <p className="text-sm font-bold text-slate-700">Number #: {invoiceNumber || '---'}</p>
                             <p className="text-sm font-bold text-slate-700">Date: {new Date(date).toLocaleDateString()}</p>
                         </div>
@@ -224,7 +270,7 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                                         <td className="py-4 font-bold text-slate-700">{item.description || 'New Service'}</td>
                                         <td className="py-4 text-center text-slate-600 font-medium">{item.qty}</td>
                                         <td className="py-4 text-right text-slate-600 font-medium">{settings.currencySymbol}{item.unitPrice.toLocaleString()}</td>
-                                        <td className="py-4 text-right font-black text-slate-800">{settings.currencySymbol}{(item.qty * item.unitPrice).toLocaleString()}</td>
+                                        <td className="py-4 text-right font-bold text-slate-800 print:text-black">{settings.currencySymbol}{(item.qty * item.unitPrice).toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -240,7 +286,7 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
 
                             {invoiceType === 'INVOICE' && (
                                 <div className="space-y-2">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Account Details</h4>
+                                    <h4 className="text-[10px] font-bold text-slate-400 print:text-black uppercase tracking-widest">Account Details</h4>
                                     <div className="text-sm font-bold text-slate-600 space-y-1">
                                         <p><span className="text-slate-400">Bank:</span> {settings.bankName || '---'}</p>
                                         <p><span className="text-slate-400">Account Name:</span> {settings.accountName || '---'}</p>
@@ -259,9 +305,9 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                                 <span>Discount:</span>
                                 <span>-{settings.currencySymbol}{discount.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between items-center text-slate-900 border-t border-slate-200 pt-2 pb-4">
-                                <span className="text-xl font-black">Total:</span>
-                                <span className="text-2xl font-black">{settings.currencySymbol}{total.toLocaleString()}</span>
+                            <div className="flex justify-between items-center text-slate-900 print:text-black border-t border-slate-200 pt-2 pb-4">
+                                <span className="text-xl font-bold">Total:</span>
+                                <span className="text-2xl font-bold">{settings.currencySymbol}{total.toLocaleString()}</span>
                             </div>
 
                             <div className="flex justify-between items-center text-slate-700 font-bold">
@@ -270,7 +316,7 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                             </div>
 
                             {invoiceType === 'INVOICE' && (
-                                <div className="flex justify-between items-center text-emerald-700 font-black text-xl pt-4">
+                                <div className="flex justify-between items-center text-emerald-700 print:text-black font-bold text-xl pt-4">
                                     <span>Balance Due:</span>
                                     <span>{settings.currencySymbol}{balanceDue.toLocaleString()}</span>
                                 </div>
@@ -297,6 +343,13 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                     <p className="text-slate-500 font-medium">Create custom invoices and receipts manually</p>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={resetInvoiceForm}
+                        className="px-4 py-3 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-slate-600 font-bold text-sm flex items-center gap-2 transition"
+                        title="Reset Form to Empty State"
+                    >
+                        <RotateCcw className="w-4 h-4 text-slate-400" /> Reset Form
+                    </button>
                     <button
                         onClick={() => setShowPreview(true)}
                         className="soft-btn-primary px-8 py-3 flex items-center gap-2"
@@ -402,18 +455,26 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                 {/* Sidebar Config */}
                 <div className="space-y-6">
                     <div className="soft-card p-6 space-y-6">
-                        <h3 className="font-bold text-slate-700">Document Settings</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-bold text-slate-700">Document Settings</h3>
+                            <button
+                                onClick={resetInvoiceForm}
+                                className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" /> Clear / New
+                            </button>
+                        </div>
 
                         <div className="space-y-4">
                             <div className="flex p-1 bg-slate-100 rounded-xl">
                                 <button
-                                    onClick={() => setInvoiceType('INVOICE')}
+                                    onClick={() => handleTypeChange('INVOICE')}
                                     className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${invoiceType === 'INVOICE' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     INVOICE
                                 </button>
                                 <button
-                                    onClick={() => setInvoiceType('RECEIPT')}
+                                    onClick={() => handleTypeChange('RECEIPT')}
                                     className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${invoiceType === 'RECEIPT' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     RECEIPT
@@ -435,16 +496,34 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Invoice Number</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Invoice Number</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setInvoiceNumber(generateAutoInvoiceNumber(invoiceType))}
+                                        className="text-[10px] font-bold text-amber-600 hover:underline flex items-center gap-1"
+                                        title="Auto-generate new invoice number"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> Auto Generate
+                                    </button>
+                                </div>
                                 <div className="relative">
                                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                                     <input
                                         type="text"
                                         value={invoiceNumber}
                                         onChange={(e) => setInvoiceNumber(e.target.value)}
-                                        placeholder="INV-00001-2025"
-                                        className="w-full soft-input pl-10 pr-4 py-2.5 text-sm font-mono"
+                                        placeholder="INV-20260811-1234"
+                                        className="w-full soft-input pl-10 pr-10 py-2.5 text-sm font-mono"
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setInvoiceNumber(generateAutoInvoiceNumber(invoiceType))}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-600 transition"
+                                        title="Auto Generate"
+                                    >
+                                        <RefreshCw className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
 
@@ -479,7 +558,7 @@ export const FreeInvoice: React.FC<FreeInvoiceProps> = ({ settings, user }) => {
                         </div>
                         <div>
                             <p className="text-xs font-black uppercase text-emerald-600 tracking-wider">Quick Action</p>
-                            <p className="text-sm font-bold text-emerald-800">Everything auto-saves locally while you edit</p>
+                            <p className="text-sm font-bold text-emerald-800">Invoices auto-reset after saving for seamless entry</p>
                         </div>
                     </div>
                 </div>

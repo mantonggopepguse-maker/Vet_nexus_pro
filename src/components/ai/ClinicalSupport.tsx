@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/apiService';
-import { Sparkles, Activity, FileText, AlertCircle, TrendingUp, TrendingDown, Clipboard, Package } from 'lucide-react';
+import { Sparkles, Activity, FileText, AlertCircle, TrendingUp, TrendingDown, Clipboard, Package, PawPrint } from 'lucide-react';
 import { toast } from 'sonner';
+import { Pet } from '../../types';
 
 interface ClinicalSupportProps {
     patientId?: string;
+    patients?: Pet[];
 }
 
-const ClinicalSupport: React.FC<ClinicalSupportProps> = ({ patientId: initialPatientId }) => {
+const ClinicalSupport: React.FC<ClinicalSupportProps> = ({ patientId: initialPatientId, patients: initialPatients = [] }) => {
     const [patientId, setPatientId] = useState(initialPatientId || '');
+    const [patientList, setPatientList] = useState<Pet[]>(initialPatients);
     const [loading, setLoading] = useState(false);
     const [analysis, setAnalysis] = useState<any>(null);
     const [trends, setTrends] = useState<any[]>([]);
@@ -20,6 +23,25 @@ const ClinicalSupport: React.FC<ClinicalSupportProps> = ({ patientId: initialPat
         heartRate: '',
         respiratoryRate: ''
     });
+
+    useEffect(() => {
+        if (!initialPatients || initialPatients.length === 0) {
+            api.patients.getAll().then(pts => setPatientList(pts || [])).catch(() => {});
+        } else {
+            setPatientList(initialPatients);
+        }
+    }, [initialPatients]);
+
+    const handleSelectPatient = (id: string) => {
+        setPatientId(id);
+        if (id) {
+            fetchTrends(id);
+            const found = patientList.find(p => p.id === id);
+            if (found && found.weight) {
+                setVitals(prev => ({ ...prev, weight: String(found.weight) }));
+            }
+        }
+    };
 
     const fetchTrends = async (id: string) => {
         try {
@@ -76,13 +98,24 @@ const ClinicalSupport: React.FC<ClinicalSupportProps> = ({ patientId: initialPat
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-wider">Patient ID</label>
-                        <input
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <PawPrint className="w-3.5 h-3.5 text-amber-500" /> Patient Selection *
+                        </label>
+                        <select
                             value={patientId}
-                            onChange={(e) => setPatientId(e.target.value)}
-                            className="soft-input w-full p-3 text-sm"
-                            placeholder="Enter Patient ID..."
-                        />
+                            onChange={(e) => handleSelectPatient(e.target.value)}
+                            className="soft-input w-full p-3 text-sm font-semibold text-slate-800"
+                        >
+                            <option value="">-- Select Patient --</option>
+                            {patientList.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.name} ({p.species} - {p.breed || 'N/A'})
+                                </option>
+                            ))}
+                        </select>
+                        {!patientList.some(p => p.id === patientId) && patientId && (
+                            <p className="text-[11px] font-mono text-slate-400 px-1">Active Patient ID: {patientId}</p>
+                        )}
                     </div>
 
                     <div className="space-y-2">

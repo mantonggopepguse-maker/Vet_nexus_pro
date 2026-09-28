@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.js';
+import { authenticate, authorize, staffOnly, AuthRequest } from '../middleware/auth.js';
 import { z } from 'zod';
 import { logAudit } from '../utils/auditLogger.js';
 
 const router = Router();
+router.use(authenticate, staffOnly);
 
 const auditLogSchema = z.object({
     reason: z.string().min(1)

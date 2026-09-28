@@ -96,6 +96,18 @@ export const AddPatientForm: React.FC<AddPatientFormProps> = ({ onBack, clients,
                 {/* Owner Selection */}
                 <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-600 ml-1">Pet Owner</label>
+                    {formData.ownerId && (
+                        (() => {
+                            const selectedOwner = clients.find(c => c.id === formData.ownerId);
+                            if (!selectedOwner) return null;
+                            return (
+                                <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold flex items-center justify-between">
+                                    <span>Registering pet for: <strong>{selectedOwner.firstName} {selectedOwner.lastName}</strong> ({selectedOwner.phone})</span>
+                                    <span className="px-2 py-0.5 rounded-full bg-teal-600 text-white text-[10px] uppercase font-black">Registered Client</span>
+                                </div>
+                            );
+                        })()
+                    )}
                     <div className="relative">
                         <select
                             name="ownerId"
@@ -104,7 +116,7 @@ export const AddPatientForm: React.FC<AddPatientFormProps> = ({ onBack, clients,
                             className="w-full soft-input px-5 py-4 font-bold text-slate-700 appearance-none bg-transparent"
                             required
                         >
-                            <option value="" disabled>Select Client</option>
+                            <option value="" disabled>Select Registered Client</option>
                             {clients.map(c => (
                                 <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.phone})</option>
                             ))}

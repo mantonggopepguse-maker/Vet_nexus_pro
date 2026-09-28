@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.js';
+import { authenticate, authorize, staffOnly, AuthRequest } from '../middleware/auth.js';
 import { z } from 'zod';
 import { logAudit } from '../utils/auditLogger.js';
 
 const router = Router();
+router.use(authenticate, staffOnly);
 
 const inventorySchema = z.object({
     name: z.string().min(1),
@@ -118,10 +119,12 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Get image for inventory item
-router.get('/:id/image', async (req, res) => {
+router.get('/:id/image', async (req: AuthRequest, res) => {
     try {
-        const item = await prisma.inventoryItem.findUnique({
-            where: { id: req.params.id as string },
+        const item = await prisma.inventoryItem.findFirst({
+            where: req.user?.isSuperAdmin
+                ? { id: req.params.id as string }
+                : { id: req.params.id as string, clinicId: req.user?.clinicId as string },
             select: { imageUrl: true }
         });
 

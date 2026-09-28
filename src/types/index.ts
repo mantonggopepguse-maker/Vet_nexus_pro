@@ -64,7 +64,7 @@ export interface InventoryItem {
   imageUrl?: string;
   showInClientPortal: boolean;
   batchNumber?: string;
-    nafdacNumber?: string;
+  nafdacNumber?: string;
   manufacturer?: string;
   batches?: StockBatch[]; // Track history of added stock
   sales?: number; // For tracking best sellers
@@ -141,7 +141,12 @@ export interface Client {
   internalNotes?: string;
   tags?: string[];
   registrationDate: string;
+  portalPasswordMustChange?: boolean;
+  initialPassword?: string | null;
+  passwordSet?: boolean;
+  isPasswordChangedByUser?: boolean;
   password?: string;
+  avatarUrl?: string;
   isPortalEnabled: boolean;
   lastLogin?: string;
   pets?: Pet[];
@@ -157,11 +162,11 @@ export interface Client {
     enabled: boolean;
     lastLogin?: string | null;
     passwordMustChange?: boolean;
+    initialPassword?: string | null;
+    isPasswordChangedByUser?: boolean;
     portalConversationCount?: number;
     invite?: PortalInviteSummary | null;
   };
-  portalInbox?: PortalInboxSummary;
-  patients?: Pet[];
   appointments?: Appointment[];
   reminders?: Reminder[];
   consentForms?: ConsentForm[];
@@ -264,6 +269,7 @@ export interface Pet {
   weight: number;
   color?: string;
   microchipId?: string;
+  avatarUrl?: string;
   owner?: Client;
   treatments?: any[];
   vaccinations?: any[];
@@ -368,7 +374,7 @@ export interface Expense {
 }
 
 export type ViewState = 'LIST' | 'ADD_ITEM' | 'EDIT_ITEM' | 'ADD_CLIENT' | 'ADD_PATIENT' | 'ADD_PROCEDURE' | 'NEW_TREATMENT' | 'ADD_STAFF' | 'EDIT_STAFF' | 'EDIT_CLIENT' | 'EDIT_PATIENT';
-export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'HOSPITALIZATION' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK' | 'PATIENT_QUEUE';
+export type AppView = 'DASHBOARD' | 'INVENTORY' | 'POS' | 'PATIENTS' | 'TREATMENTS' | 'PROCEDURES' | 'CLIENTS' | 'APPOINTMENTS' | 'SETTINGS' | 'STAFF' | 'AUDIT_LOG' | 'SUPER_ADMIN' | 'SALES_HISTORY' | 'CLINIC_DETAILS' | 'CLIENT_DETAILS' | 'PATIENT_DETAILS' | 'EXPENSES' | 'FREE_INVOICE' | 'REPORTS' | 'REMINDERS' | 'AI_HUB' | 'LAB_HUB' | 'ICU_BOARD' | 'HOSPITALIZATION' | 'SHIFT_TIMETABLE' | 'BRANCHES' | 'TRIAGE' | 'NARCOTICS_LOCKBOX' | 'CLINICAL_CALCULATORS' | 'SURGERY_HUB' | 'REFERRAL_MANAGEMENT' | 'REFERRAL_PORTAL' | 'PORTAL_DASHBOARD' | 'PORTAL_LOGIN' | 'PORTAL_INVITE' | 'PORTAL_INBOX' | 'SUBSCRIPTION_CALLBACK' | 'PATIENT_QUEUE';
 export type SuperAdminView = 'CLINICS' | 'INVITES';
 export type Patient = Pet;
 
@@ -614,6 +620,7 @@ export interface Department {
   updatedAt?: string;
 }
 
+
 export interface QueueEntry {
   id: string;
   clinicId: string;
@@ -635,4 +642,58 @@ export interface QueueEntry {
   client?: { id: string; firstName: string; lastName: string; phone: string };
   department: { id: string; name: string };
   assignedTo?: { id: string; name: string };
+}
+
+export interface SurgeryMonitoringEntry {
+  id: string;
+  surgeryId: string;
+  heartRate?: number | null;
+  spo2?: number | null;
+  respiration?: number | null;
+  bpSystolic?: number | null;
+  bpDiastolic?: number | null;
+  temp?: number | null;
+  etco2?: number | null;
+  fluids?: string | null;
+  notes?: string | null;
+  timestamp: string;
+}
+
+export interface Surgery {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  surgeonId: string;
+  anesthetistId?: string | null;
+  procedureId?: string | null;
+  preMeds?: string | null;
+  asaScore?: number | null;
+  status: 'InProgress' | 'Completed' | 'Cancelled' | string;
+  startTime: string;
+  endTime?: string | null;
+  patient: Pet;
+  surgeon: { id?: string; name: string };
+  anesthetist?: { id?: string; name: string } | null;
+  procedure?: Procedure | null;
+  monitoringEntries: SurgeryMonitoringEntry[];
+}
+
+export interface Referral {
+  id: string;
+  clinicId: string;
+  submittingVetName: string;
+  submittingClinic: string;
+  submittingEmail: string;
+  submittingPhone: string;
+  patientName: string;
+  patientSpecies: string;
+  patientBreed?: string;
+  patientAge?: string;
+  clientName: string;
+  history?: string;
+  reasonForReferral: string;
+  urgency: 'Routine' | 'Urgent' | 'Emergency' | string;
+  status: 'Pending' | 'Accepted' | 'Declined' | string;
+  createdAt: string;
+  updatedAt: string;
 }

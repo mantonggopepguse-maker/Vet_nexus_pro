@@ -182,30 +182,30 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
             const now = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
             const tableRows = data.map(item => rows(item)
-                .map(cell => `<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#475569">${cell}</td>`)
+                .map(cell => `<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:11px;font-weight:600;color:#1e293b">${cell}</td>`)
                 .join('')
             ).map(r => `<tr>${r}</tr>`).join('');
 
-            const headerCells = columns.map(c => `<th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:800;letter-spacing:0.15em;text-transform:;color:#94a3b8;border-bottom:2px solid #e2e8f0">${c}</th>`).join('');
+            const headerCells = columns.map(c => `<th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:0.15em;color:#1e293b;border-bottom:2px solid #e2e8f0">${c}</th>`).join('');
 
             const html = `
-            <div style="font-family:'Public Sans',sans-serif;padding:32px;max-width:900px;margin:0 auto">
+            <div style="font-family:'Public Sans',sans-serif;padding:32px;max-width:900px;margin:0 auto;color:#0f172a">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #0f172a">
                 <div>
-                  <div style="font-size:9px;font-weight:900;letter-spacing:0.3em;text-transform:;color:#14B8A6;margin-bottom:8px">${clinicName}</div>
-                  <h1 style="font-size:28px;font-weight:900;color:#0f172a;margin:0;letter-spacing:-0.04em">${title}</h1>
-                  <p style="font-size:11px;color:#94a3b8;margin-top:6px">Exported on ${now} · ${data.length} records</p>
+                  <div style="font-size:9px;font-weight:700;letter-spacing:0.3em;color:#0f766e;margin-bottom:8px">${clinicName}</div>
+                  <h1 style="font-size:28px;font-weight:700;color:#0f172a;margin:0;letter-spacing:-0.04em">${title}</h1>
+                  <p style="font-size:11px;color:#475569;margin-top:6px">Exported on ${now} · ${data.length} records</p>
                 </div>
                 <div style="text-align:right">
-                  <div style="font-size:9px;font-weight:900;letter-spacing:0.2em;text-transform:;color:#94a3b8">CONFIDENTIAL</div>
-                  <div style="font-size:9px;color:#cbd5e1;margin-top:4px">VetNexus Pro Clinical System</div>
+                  <div style="font-size:9px;font-weight:700;letter-spacing:0.2em;color:#475569">CONFIDENTIAL</div>
+                  <div style="font-size:9px;color:#64748b;margin-top:4px">VetNexus Pro Clinical System</div>
                 </div>
               </div>
               <table style="width:100%;border-collapse:collapse">
                 <thead><tr style="background:#f8fafc">${headerCells}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>
-              <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:9px;color:#cbd5e1;text-align:center">
+              <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:9px;color:#64748b;text-align:center">
                 This document is generated from VetNexus Pro and is intended for authorised use only.
               </div>
             </div>`;
@@ -213,8 +213,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
             await (window as any).html2pdf().set({
                 margin: 0,
                 filename: `${clinicName.replace(/\s+/g,'-')}_${type}_${Date.now()}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
+                image: { type: 'png' },
+                    html2canvas: { scale: 3, useCORS: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: type === 'sales' ? 'landscape' : 'portrait' }
             }).from(html).save();
             toast.success(`${title} exported successfully`);
@@ -254,19 +254,15 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
     const fetchSubscriptionData = async () => {
         setLoadingPlans(true);
         try {
-            const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
-
-            const [plansRes, subRes, usageRes] = await Promise.all([
-                fetch(`${apiUrl}/subscription/plans`, { headers }),
-                fetch(`${apiUrl}/subscription/current`, { headers }),
-                fetch(`${apiUrl}/subscription/usage`, { headers })
+            const [plansData, subData, usageData] = await Promise.all([
+                api.subscription.getPlans().catch(() => []),
+                api.subscription.getCurrent().catch(() => null),
+                api.subscription.getUsage().catch(() => null)
             ]);
 
-            if (plansRes.ok) setPlans(await plansRes.json());
-            if (subRes.ok) setSubscription(await subRes.json());
-            if (usageRes.ok) {
-                const usageData = await usageRes.json();
+            if (plansData) setPlans(plansData);
+            if (subData) setSubscription(subData);
+            if (usageData?.usage) {
                 setUsage(usageData.usage);
             }
         } catch (error) {
@@ -280,25 +276,19 @@ export const Settings: React.FC<SettingsProps> = ({ settings, user, isSaving, on
     const handleUpgrade = async (planId: string) => {
         setUpgrading(planId);
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
-            const response = await fetch(`${apiUrl}/subscription/upgrade/initialize`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ billingCycle: selectedBillingCycle, planId })
+            const data = await api.subscription.initializeUpgrade({
+                billingCycle: selectedBillingCycle as 'monthly' | 'yearly',
+                planId
             });
 
-            const data = await response.json();
-            if (response.ok && data.paymentUrl) {
+            if (data?.paymentUrl) {
                 window.location.href = data.paymentUrl;
             } else {
-                toast.error(data.error || 'Failed to start payment');
+                toast.error(data?.error || 'Failed to start payment');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error upgrading:', error);
-            toast.error('Failed to process upgrade');
+            toast.error(error?.message || 'Failed to process upgrade');
         } finally {
             setUpgrading(null);
         }

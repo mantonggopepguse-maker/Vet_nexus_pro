@@ -178,6 +178,8 @@ model Client {
   portalPasswordMustChange Boolean         @default(false)
   lastLogin               DateTime?
   password                String?
+  initialPassword         String?
+  avatarUrl               String?
   googleDriveRefreshToken String?
   googleDriveAccessToken  String?
   googleDriveFolderId     String?
@@ -212,6 +214,7 @@ model Patient {
   weight           Float
   color            String?
   microchipId      String?
+  avatarUrl        String?
   ownerId          String?
   triageStatus     String            @default("NONE")
   triageStartTime  DateTime?

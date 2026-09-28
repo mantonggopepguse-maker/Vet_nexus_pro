@@ -74,11 +74,13 @@ import { initializeSubscriptionPlans } from './services/subscriptionService.js';
 import { NotificationService } from './services/notificationService.js';
 
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 // Fix for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 // Initialize Express app
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
@@ -117,11 +119,24 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files from the React app
-const frontendPath = path.join(__dirname, '../../dist');
+// Serve static files from the React app with smart cache headers
+const candidateFrontendPaths = [
+    path.join(__dirname, '../../dist'),
+    path.join(__dirname, '../dist'),
+    path.join(process.cwd(), '../dist'),
+    path.join(process.cwd(), 'dist')
+];
+const frontendPath = candidateFrontendPaths.find(p => fs.existsSync(p)) || path.join(__dirname, '../../dist');
 app.use(express.static(frontendPath, {
-    maxAge: '1d', // Cache static assets for 1 day to reduce Cloud Run requests
-    etag: false
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        } else {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+    }
 }));
 
 // Request logging middleware (Development only to save Cloud Logging costs)
@@ -132,10 +147,12 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
+// Health check endpoints (support both /health and /api/health for GET & HEAD)
+const handleHealthCheck = (_req: express.Request, res: express.Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+};
+app.get(['/health', '/api/health'], handleHealthCheck);
+app.head(['/health', '/api/health'], handleHealthCheck);
 
 // Rate Limiting
 app.use('/api', apiLimiter);
@@ -190,8 +207,6 @@ app.use('/api/firebase', firebaseRoutes);
 // Initialize subscription plans on startup
 initializeSubscriptionPlans().catch(console.error);
 
-// Note: Reminder processing has been moved to a dedicated Cloud Scheduler endpoint
-// to reduce Cloud Run costs by allowing instances to scale to zero.
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Error:', err);
@@ -208,6 +223,9 @@ app.use('/api', (req, res) => {
 
 // Fallback to React app for all other routes (SPA support)
 app.get('*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 

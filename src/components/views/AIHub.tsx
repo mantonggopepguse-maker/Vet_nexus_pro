@@ -122,11 +122,11 @@ export const AIHub: React.FC<AIHubProps> = ({ currentUser, settings, clients = [
                 )}
 
                 {activeTab === 'SUPPORT' && (
-                    <ClinicalSupport patientId={initialPatientId} />
+                    <ClinicalSupport patientId={initialPatientId} patients={patients} />
                 )}
 
                 {activeTab === 'IMAGING' && (
-                    <ImagingSupport patientId={initialPatientId} />
+                    <ImagingSupport patientId={initialPatientId} patients={patients} />
                 )}
 
                 {activeTab === 'LOGS' && (

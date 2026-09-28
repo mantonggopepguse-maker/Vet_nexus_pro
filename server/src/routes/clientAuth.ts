@@ -23,6 +23,8 @@ const signClientToken = (client: {
     firstName: string;
     lastName: string;
     email: string | null;
+    initialPassword?: string | null;
+    portalPasswordMustChange?: boolean;
 }) => {
     const token = jwt.sign(
         {
@@ -38,6 +40,9 @@ const signClientToken = (client: {
         { expiresIn: '30d' }
     );
 
+    const isMustChange = !!(client as any).portalPasswordMustChange;
+    const initialPassword = isMustChange ? ((client as any).initialPassword || null) : null;
+
     return {
         token,
         accountType: 'client' as const,
@@ -47,7 +52,9 @@ const signClientToken = (client: {
             lastName: client.lastName,
             email: client.email,
             clinicId: client.clinicId,
-            portalPasswordMustChange: (client as any).portalPasswordMustChange || false,
+            portalPasswordMustChange: isMustChange,
+            initialPassword,
+            isPasswordChangedByUser: !isMustChange && !initialPassword,
         },
     };
 };
@@ -219,6 +226,7 @@ router.post('/invite/accept', async (req, res) => {
                 where: { id: invite.clientId },
                 data: {
                     password: hashedPassword,
+                    initialPassword: null,
                     isPortalEnabled: true,
                     portalPasswordMustChange: false,
                     lastLogin: now,
@@ -302,6 +310,7 @@ router.post('/change-password', async (req, res) => {
             where: { id: client.id },
             data: {
                 password: hashedPassword,
+                initialPassword: null,
                 portalPasswordMustChange: false,
                 lastLogin: new Date(),
             },

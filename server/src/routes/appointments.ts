@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.js';
+import { authenticate, authorize, staffOnly, AuthRequest } from '../middleware/auth.js';
 import { z } from 'zod';
 import { logAudit } from '../utils/auditLogger.js';
 import { Prisma } from '@prisma/client';
 
 const router = Router();
+router.use(authenticate, staffOnly);
 
 const appointmentSchema = z.object({
   clientId: z.string().optional().nullable(),
@@ -131,6 +132,21 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
+    const [procedure, client, patient, staff] = await Promise.all([
+      prisma.procedure.findFirst({ where: { id: data.procedureId, clinicId } }),
+      data.clientId ? prisma.client.findFirst({ where: { id: data.clientId, clinicId } }) : null,
+      data.patientId ? prisma.patient.findFirst({ where: { id: data.patientId, owner: { clinicId } } }) : null,
+      data.staffId ? prisma.user.findFirst({ where: { id: data.staffId, clinicId } }) : null,
+    ]);
+
+    if (!procedure) return res.status(400).json({ error: 'Procedure is not available in this clinic' });
+    if (data.clientId && !client) return res.status(400).json({ error: 'Client is not available in this clinic' });
+    if (data.patientId && !patient) return res.status(400).json({ error: 'Patient is not available in this clinic' });
+    if (data.patientId && data.clientId && patient?.ownerId !== data.clientId) {
+      return res.status(400).json({ error: 'The selected patient does not belong to the selected client' });
+    }
+    if (data.staffId && !staff) return res.status(400).json({ error: 'Assigned clinician is not available in this clinic' });
+
     const appointment = await prisma.appointment.create({
       data: {
         clinicId: clinicId,
@@ -170,7 +186,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 // Update appointment
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const data = appointmentSchema.parse(req.body);
+    const { clinicId: _requestedClinicId, ...data } = appointmentSchema.parse(req.body);
 
     // Verify existence and permission
     const existingAppointment = await prisma.appointment.findFirst({
@@ -199,6 +215,21 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
+    const clinicId = existingAppointment.clinicId;
+    const [procedure, client, patient, staff] = await Promise.all([
+      prisma.procedure.findFirst({ where: { id: data.procedureId, clinicId } }),
+      data.clientId ? prisma.client.findFirst({ where: { id: data.clientId, clinicId } }) : null,
+      data.patientId ? prisma.patient.findFirst({ where: { id: data.patientId, owner: { clinicId } } }) : null,
+      data.staffId ? prisma.user.findFirst({ where: { id: data.staffId, clinicId } }) : null,
+    ]);
+    if (!procedure) return res.status(400).json({ error: 'Procedure is not available in this clinic' });
+    if (data.clientId && !client) return res.status(400).json({ error: 'Client is not available in this clinic' });
+    if (data.patientId && !patient) return res.status(400).json({ error: 'Patient is not available in this clinic' });
+    if (data.patientId && data.clientId && patient?.ownerId !== data.clientId) {
+      return res.status(400).json({ error: 'The selected patient does not belong to the selected client' });
+    }
+    if (data.staffId && !staff) return res.status(400).json({ error: 'Assigned clinician is not available in this clinic' });
+
     const appointment = await prisma.appointment.update({
       where: { id: req.params.id as string },
       data: {
@@ -211,7 +242,6 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         notes: data.notes,
         status: data.status,
         staffId: data.staffId || null,
-        clinicId: data.clinicId,
         updatedAt: new Date()
       },
       include: {

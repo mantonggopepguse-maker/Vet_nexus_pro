@@ -31,7 +31,12 @@ import {
   Activity,
   ListOrdered,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  HeartPulse,
+  AlertTriangle,
+  Clock,
+  Send,
+  Trash2
 } from 'lucide-react';
 import { AppView, User, ClinicSettings } from '../../types';
 import { CommandPalette } from './CommandPalette';
@@ -51,7 +56,7 @@ interface LayoutProps {
   settings: ClinicSettings;
 }
 
-const SidebarItem = ({ icon: Icon, label, active = false, badgeCount, onClick }: { icon: React.ElementType, label: string, active?: boolean, badgeCount?: number, onClick?: () => void }) => (
+const SidebarItem: React.FC<{ icon: React.ElementType, label: string, active?: boolean, badgeCount?: number, onClick?: () => void, key?: string }> = ({ icon: Icon, label, active = false, badgeCount, onClick }) => (
   <div
     onClick={onClick}
     className={`group flex items-center gap-3 px-4 py-3 rounded-[1.4rem] cursor-pointer transition-all duration-300 ease-out active:scale-[0.98] border ${active
@@ -151,40 +156,101 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
   const [isQuickAccessOpen, setIsQuickAccessOpen] = React.useState(false);
 
   const isOnline = useOnlineStatus();
-  const [pendingSyncCount, setPendingSyncCount] = React.useState(0);
+  const [syncState, setSyncState] = React.useState(() => syncService.getState());
+  const [isOfflineDismissed, setIsOfflineDismissed] = React.useState(false);
 
   React.useEffect(() => {
-    let mounted = true;
-    const checkPending = async () => {
-      const count = await syncService.getPendingCount();
-      if (mounted) setPendingSyncCount(count);
-    };
-    checkPending();
-    const interval = setInterval(checkPending, 30000);
-    return () => { mounted = false; clearInterval(interval); };
+    const unsubscribe = syncService.subscribe(setSyncState);
+    return unsubscribe;
   }, []);
 
-  const ConnectivityBanner = () => {
-    if (isOnline && pendingSyncCount === 0) return null;
+  React.useEffect(() => {
+    if (isOnline) {
+      setIsOfflineDismissed(false);
+    }
+  }, [isOnline]);
+
+  const handleSyncNow = async () => {
+    try {
+      await syncService.syncDirtyRecords();
+    } catch (e: any) {
+      toast.error('Sync failed: ' + (e?.message || 'Please check connection'));
+    }
+  };
+
+  const handleClearStuckQueue = async () => {
+    if (window.confirm('Discard unsynced records from the offline queue?')) {
+      await syncService.clearPendingQueue();
+    }
+  };
+
+  const ConnectivityIndicator = () => {
+    if (isOnline && syncState.pendingCount === 0) return null;
+    if (!isOnline && isOfflineDismissed && syncState.pendingCount === 0) return null;
+
     return (
-      <div className={`fixed top-0 left-0 right-0 z-[60] ${isOnline ? 'bg-emerald-500/90' : 'bg-amber-500/95'} backdrop-blur-md text-white text-center py-2 px-4 flex items-center justify-center gap-2 text-sm font-semibold shadow-lg`}>
+      <aside
+        aria-label="Network and synchronization status"
+        className="fixed bottom-24 md:bottom-6 right-4 md:right-8 z-40 bg-slate-900/90 text-white backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 max-w-sm"
+      >
         {isOnline ? (
           <>
-            <RefreshCw className="w-4 h-4" />
-            <span>Syncing {pendingSyncCount} pending record{pendingSyncCount !== 1 ? 's' : ''}...</span>
+            <div className="w-8 h-8 rounded-xl bg-teal-500/20 flex items-center justify-center shrink-0">
+              <RefreshCw className={`w-4 h-4 text-teal-400 ${syncState.isSyncing ? 'animate-spin' : ''}`} />
+            </div>
+            <div className="flex-1 min-w-0 pr-1">
+              <p className="text-xs font-bold leading-tight">
+                {syncState.isSyncing ? 'Syncing...' : 'Pending Sync'}
+              </p>
+              <p className="text-[11px] text-slate-400 truncate">
+                {syncState.pendingCount} record{syncState.pendingCount !== 1 ? 's' : ''} queued
+              </p>
+            </div>
+            <button
+              onClick={handleSyncNow}
+              disabled={syncState.isSyncing}
+              className="px-2.5 py-1.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-lg transition-all active:scale-95 shrink-0"
+            >
+              {syncState.isSyncing ? 'Syncing' : 'Sync Now'}
+            </button>
+            {syncState.lastError && (
+              <button
+                onClick={handleClearStuckQueue}
+                title="Discard stuck offline records"
+                className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </>
         ) : (
           <>
-            <WifiOff className="w-4 h-4" />
-            <span>You are offline. Some features may be limited until connection is restored.</span>
-            {pendingSyncCount > 0 && (
-              <span className="ml-2 bg-white/20 rounded-full px-2.5 py-0.5 text-xs font-bold">
-                {pendingSyncCount} pending
-              </span>
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+              <WifiOff className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0 pr-1">
+              <p className="text-xs font-bold leading-tight text-amber-300">Offline Mode</p>
+              <p className="text-[11px] text-slate-400 truncate">
+                {syncState.pendingCount > 0 ? `${syncState.pendingCount} saved offline` : 'Changes saved locally'}
+              </p>
+            </div>
+            {syncState.pendingCount > 0 && (
+              <button
+                onClick={handleSyncNow}
+                className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition-all shrink-0"
+              >
+                Retry
+              </button>
             )}
+            <button
+              onClick={() => setIsOfflineDismissed(true)}
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </>
         )}
-      </div>
+      </aside>
     );
   };
 
@@ -197,11 +263,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
           { id: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
           { id: 'APPOINTMENTS', label: 'Appointments', icon: CalendarDays },
           { id: 'PATIENT_QUEUE', label: 'Queue', icon: ListOrdered },
+          { id: 'SHIFT_TIMETABLE', label: 'Roster', icon: Clock },
         ]
       },
       {
         label: 'Clinical',
         items: [
+          { id: 'TRIAGE', label: 'ER Triage', icon: AlertTriangle },
+          { id: 'SURGERY_HUB', label: 'Surgery Hub', icon: HeartPulse },
           { id: 'HOSPITALIZATION', label: 'Hospitalization', icon: Activity },
           { id: 'ICU_BOARD', label: 'ICU Board', icon: Activity },
         ]
@@ -212,6 +281,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
           { id: 'CLIENTS', label: 'Clients', icon: Users },
           { id: 'PATIENTS', label: 'Patients', icon: PawPrint },
           { id: 'TREATMENTS', label: 'Treatments', icon: Stethoscope },
+          { id: 'REFERRAL_MANAGEMENT', label: 'Referrals', icon: Send },
         ]
       },
       {
@@ -284,7 +354,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onNavigat
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row transition-colors duration-1000 dashboard-shell" style={{ backgroundColor: getPageFoundation() } as React.CSSProperties}>
-      <ConnectivityBanner />
+      <ConnectivityIndicator />
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}

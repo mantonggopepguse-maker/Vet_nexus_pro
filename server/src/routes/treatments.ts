@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.js';
+import { authenticate, authorize, staffOnly, AuthRequest } from '../middleware/auth.js';
 import { logAudit } from '../utils/auditLogger.js';
 
 const router = Router();
+router.use(authenticate, staffOnly);
 const normalizeMedicationName = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 // Get all treatments
@@ -145,16 +146,63 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
             }
         }
 
+        // Sanitize scalar fields for Prisma Treatment
+        const treatmentData: any = {
+            patientId: data.patientId,
+            vetId: data.vetId || vetId,
+            totalCost: Number(data.totalCost || 0),
+            status: data.status || 'Completed',
+        };
+
+        if (data.date) {
+            treatmentData.date = new Date(data.date);
+        }
+        if (data.endDate) {
+            treatmentData.endDate = new Date(data.endDate);
+        }
+        if (data.chiefComplaint !== undefined) {
+            treatmentData.chiefComplaint = data.chiefComplaint ? String(data.chiefComplaint) : null;
+        }
+        if (data.diagnosis !== undefined) {
+            treatmentData.diagnosis = data.diagnosis ? String(data.diagnosis) : null;
+        }
+        if (data.notes !== undefined) {
+            treatmentData.notes = data.notes ? String(data.notes) : null;
+        }
+
+        const validMedications = Array.isArray(medications)
+            ? medications
+                .filter((m: any) => m && m.drug && String(m.drug).trim())
+                .map((m: any) => ({
+                    drug: String(m.drug).trim(),
+                    dose: String(m.dose || ''),
+                    route: String(m.route || ''),
+                    freq: String(m.freq || ''),
+                    duration: String(m.duration || ''),
+                    cost: Number(m.cost || 0),
+                    itemId: m.itemId || null
+                }))
+            : [];
+
+        const validProcedures = Array.isArray(procedures)
+            ? procedures
+                .filter((p: any) => p && (p.procedureId || p.id))
+                .map((p: any) => ({
+                    procedureId: p.procedureId || p.id,
+                    cost: Number(p.cost || 0)
+                }))
+            : [];
+
         const result = await prisma.$transaction(async (tx: any) => {
             // 1. Create Treatment with medications and procedures
             const treatment = await tx.treatment.create({
                 data: {
-                    ...data,
+                    ...treatmentData,
                     medications: {
-                        create: medications || []
+                        create: validMedications
                     },
                     procedures: {
-                        create: procedures || []
+                        create: validProcedures
                     }
                 },
                 include: {
@@ -328,15 +376,49 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
                 where: { treatmentId: req.params.id as string }
             });
 
+            const updateTreatmentData: any = {};
+            if (data.patientId) updateTreatmentData.patientId = data.patientId;
+            if (data.vetId) updateTreatmentData.vetId = data.vetId;
+            if (data.totalCost !== undefined) updateTreatmentData.totalCost = Number(data.totalCost || 0);
+            if (data.status !== undefined) updateTreatmentData.status = data.status;
+            if (data.date) updateTreatmentData.date = new Date(data.date);
+            if (data.endDate !== undefined) updateTreatmentData.endDate = data.endDate ? new Date(data.endDate) : null;
+            if (data.chiefComplaint !== undefined) updateTreatmentData.chiefComplaint = data.chiefComplaint ? String(data.chiefComplaint) : null;
+            if (data.diagnosis !== undefined) updateTreatmentData.diagnosis = data.diagnosis ? String(data.diagnosis) : null;
+            if (data.notes !== undefined) updateTreatmentData.notes = data.notes ? String(data.notes) : null;
+
+            const validMedications = Array.isArray(medications)
+                ? medications
+                    .filter((m: any) => m && m.drug && String(m.drug).trim())
+                    .map((m: any) => ({
+                        drug: String(m.drug).trim(),
+                        dose: String(m.dose || ''),
+                        route: String(m.route || ''),
+                        freq: String(m.freq || ''),
+                        duration: String(m.duration || ''),
+                        cost: Number(m.cost || 0),
+                        itemId: m.itemId || null
+                    }))
+                : [];
+
+            const validProcedures = Array.isArray(procedures)
+                ? procedures
+                    .filter((p: any) => p && (p.procedureId || p.id))
+                    .map((p: any) => ({
+                        procedureId: p.procedureId || p.id,
+                        cost: Number(p.cost || 0)
+                    }))
+                : [];
+
             const treatment = await tx.treatment.update({
                 where: { id: req.params.id as string },
                 data: {
-                    ...data,
+                    ...updateTreatmentData,
                     medications: {
-                        create: medications || []
+                        create: validMedications
                     },
                     procedures: {
-                        create: procedures || []
+                        create: validProcedures
                     }
                 },
                 include: {

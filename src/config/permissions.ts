@@ -9,7 +9,10 @@ export const PERMISSIONS: Partial<Record<AppView, UserRole[]>> = {
     TRIAGE: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
     ICU_BOARD: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
     HOSPITALIZATION: ['Admin', 'Veterinarian', 'Vet Tech', 'Vet Assistant', 'SUPER_ADMIN'],
+    SURGERY_HUB: ['Admin', 'Veterinarian', 'Vet Tech', 'SUPER_ADMIN'],
     SHIFT_TIMETABLE: ['Admin', 'Veterinarian', 'Vet Tech', 'SUPER_ADMIN'],
+    REFERRAL_MANAGEMENT: ['Admin', 'Veterinarian', 'Receptionist', 'SUPER_ADMIN'],
+    REFERRAL_PORTAL: ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],
 
     // --- Client & Patient ---
     CLIENTS: ['Admin', 'Veterinarian', 'Lab Scientist', 'Vet Tech', 'Vet Assistant', 'Receptionist', 'SUPER_ADMIN'],

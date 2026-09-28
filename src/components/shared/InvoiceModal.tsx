@@ -59,9 +59,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         const options = {
             margin: [isThermal ? 3 : 10, isThermal ? 3 : 10, isThermal ? 3 : 10, isThermal ? 3 : 10],
             filename: filename,
-            image: { type: 'jpeg', quality: 0.98 },
+            image: { type: 'png', quality: 0.98 },
             html2canvas: {
-                scale: 2,
+                scale: 3,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff'
@@ -127,7 +127,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
                         {/* Logo and Header Center */}
                         <div className="text-center mb-6 sm:mb-10 md:mb-16 print:mb-8 thermal-header">
-                            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-900 print:text-blue-900 tracking-tight mb-1 sm:mb-2">
+                            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 print:text-black tracking-tight mb-1 sm:mb-2">
                                 {settings.name || 'Vet Nexus'}
                             </h1>
                             <div className="text-xs sm:text-sm font-medium text-slate-600 print:text-slate-800 space-y-0.5">
@@ -141,12 +141,12 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                             {/* Left: Billed To */}
                             <div className="w-full md:w-auto">
                                 <h3 className="text-xs font-bold text-peach-600 print:text-peach-800 uppercase tracking-widest mb-2">BILLED TO</h3>
-                                <p className="text-lg font-black text-slate-800 print:text-black">{clientName}</p>
+                                <p className="text-lg font-bold text-slate-800 print:text-black">{clientName}</p>
                             </div>
 
                             {/* Right: Invoice Info */}
                             <div className="text-left md:text-right w-full md:w-auto">
-                                <h2 className="text-2xl font-black text-peach-600 print:text-peach-800 uppercase tracking-wider mb-2 thermal-title">
+                                <h2 className="text-2xl font-bold text-peach-600 print:text-black uppercase tracking-wider mb-2 thermal-title">
                                     {type}
                                 </h2>
                                 <div className="space-y-1">
@@ -183,7 +183,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                             <td className="py-2 sm:py-4 text-right text-xs sm:text-sm font-bold text-slate-600 whitespace-nowrap">
                                                 {settings.currencySymbol}{item.retailPrice.toLocaleString()}
                                             </td>
-                                            <td className="py-2 sm:py-4 text-right text-xs sm:text-sm font-black text-slate-800 whitespace-nowrap">
+                                            <td className="py-2 sm:py-4 text-right text-xs sm:text-sm font-bold text-slate-800 print:text-black whitespace-nowrap">
                                                 {settings.currencySymbol}{(item.retailPrice * (item.cartQuantity ?? item.quantity)).toLocaleString()}
                                             </td>
                                         </tr>
@@ -199,7 +199,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                             <div className="space-y-4 sm:space-y-8 order-2 md:order-1 print:space-y-4">
                                 <div>
                                     <p className="text-[10px] sm:text-xs font-bold text-slate-500 print:text-slate-600 mb-1">Sale by:</p>
-                                    <p className="text-xs sm:text-sm font-black text-slate-800 print:text-black">{issuerName || 'Staff'}</p>
+                                    <p className="text-xs sm:text-sm font-bold text-slate-800 print:text-black">{issuerName || 'Staff'}</p>
                                 </div>
 
                                 {payments.length > 0 ? (
@@ -209,8 +209,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                             {payments.map((p, idx) => (
                                                 <div key={p.id || idx} className="flex justify-between items-center text-[10px] sm:text-xs bg-slate-50 print:bg-transparent p-1.5 rounded border border-slate-100 print:border-none">
                                                     <span className="font-bold text-slate-600">{new Date(p.date || p.createdAt).toLocaleDateString()}</span>
-                                                    <span className="font-black text-slate-800 uppercase mx-2">{p.method.replace('_', ' ')}</span>
-                                                    <span className="font-black text-peach-600 ml-auto">{settings.currencySymbol}{p.amount.toLocaleString()}</span>
+                                                    <span className="font-bold text-slate-800 print:text-black uppercase mx-2">{p.method.replace('_', ' ')}</span>
+                                                    <span className="font-bold text-peach-600 print:text-black ml-auto">{settings.currencySymbol}{p.amount.toLocaleString()}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -218,13 +218,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                 ) : paymentMethod && (
                                     <div>
                                         <p className="text-[10px] sm:text-xs font-bold text-slate-500 print:text-slate-600 mb-1">Payment Method:</p>
-                                        <p className="text-xs sm:text-sm font-black text-slate-800 print:text-black uppercase">{paymentMethod.replace('_', ' ')}</p>
+                                        <p className="text-xs sm:text-sm font-bold text-slate-800 print:text-black uppercase">{paymentMethod.replace('_', ' ')}</p>
                                     </div>
                                 )}
 
                                 {type === 'INVOICE' && (
                                     <div className="pt-2 sm:pt-4">
-                                        <h4 className="text-[10px] sm:text-xs font-black text-slate-700 print:text-black mb-2 sm:mb-3">Account Details</h4>
+                                        <h4 className="text-[10px] sm:text-xs font-bold text-slate-700 print:text-black mb-2 sm:mb-3">Account Details</h4>
                                         <div className="text-xs sm:text-sm font-medium text-slate-600 print:text-slate-800 space-y-1 sm:space-y-1.5">
                                             <p className="flex gap-2">
                                                 <span className="text-slate-400 print:text-slate-600 w-20 sm:w-24 flex-shrink-0">Bank:</span>
@@ -258,8 +258,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                 )}
 
                                 <div className="flex justify-between items-center text-slate-900 print:text-black border-t border-slate-100 pt-2 sm:pt-3 pb-1 thermal-total">
-                                    <span className="text-base sm:text-lg font-black">Total:</span>
-                                    <span className="text-lg sm:text-xl font-black">{settings.currencySymbol}{totals.total.toLocaleString()}</span>
+                                    <span className="text-base sm:text-lg font-bold print:text-black">Total:</span>
+                                    <span className="text-lg sm:text-xl font-bold print:text-black">{settings.currencySymbol}{totals.total.toLocaleString()}</span>
                                 </div>
 
                                 <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-600 print:text-slate-800 thermal-amount">
@@ -268,7 +268,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                 </div>
 
                                 {type === 'INVOICE' && (
-                                    <div className="flex justify-between text-base sm:text-lg font-black text-peach-700 print:text-peach-800 pt-1 sm:pt-2 thermal-total">
+                                    <div className="flex justify-between text-base sm:text-lg font-bold text-peach-700 print:text-black pt-1 sm:pt-2 thermal-total">
                                         <span>Balance Due:</span>
                                         <span>{settings.currencySymbol}{effectiveBalance.toLocaleString()}</span>
                                     </div>
@@ -277,7 +277,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                                 {/* Unpaid Badge */}
                                 {isUnpaid && (
                                     <div className="mt-2 sm:mt-4 text-right">
-                                        <div className="inline-block border-2 border-rose-500 text-rose-500 px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-black uppercase tracking-widest print:border-red-600 print:text-red-600 thermal-badge">
+                                        <div className="inline-block border-2 border-rose-500 text-rose-500 px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest print:border-black print:text-black thermal-badge">
                                             Unpaid
                                         </div>
                                     </div>

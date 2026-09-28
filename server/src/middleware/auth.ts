@@ -78,6 +78,20 @@ export const authorize = (...roles: string[]) => {
     };
 };
 
+// Portal clients and clinic staff use JWTs issued by the same service. Routes that
+// expose clinic operations must explicitly reject client sessions after authentication.
+export const staffOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    if (req.user.roles.includes('CLIENT')) {
+        return res.status(403).json({ error: 'Clinic staff access required' });
+    }
+
+    next();
+};
+
 export const superAdminOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !req.user.isSuperAdmin) {
         return res.status(403).json({ error: 'Super Admin access required' });

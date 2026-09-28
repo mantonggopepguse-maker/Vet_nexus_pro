@@ -102,16 +102,28 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor';
+            }
+
             if (id.includes('recharts')) {
               return 'charts-vendor';
             }
 
-            if (id.includes('html2canvas') || id.includes('html2pdf')) {
+            if (id.includes('html2canvas') || id.includes('html2pdf') || id.includes('jspdf')) {
               return 'export-vendor';
             }
 
             if (id.includes('@google') || id.includes('dompurify')) {
               return 'ai-vendor';
+            }
+
+            if (id.includes('firebase')) {
+              return 'firebase-vendor';
             }
           }
         }
