@@ -87,6 +87,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 8080;
 const defaultAllowedOrigins = [
     'https://vetnexus-180033031286.us-central1.run.app',
+    'https://vetnexus-wsd7idcgtq-uc.a.run.app',
     'https://purplevets.vetnexuspro.com',
     'https://app.vetnexuspro.com',
     'https://vetnexuspro.com',
@@ -112,6 +113,20 @@ app.use(cors({
             callback(null, true);
             return;
         }
+
+        // Dynamically allow any Google Cloud Run URL or vetnexuspro domain
+        try {
+            const url = new URL(origin);
+            if (
+                url.hostname.endsWith('.run.app') ||
+                url.hostname.endsWith('vetnexuspro.com') ||
+                url.hostname === 'localhost' ||
+                url.hostname === '127.0.0.1'
+            ) {
+                callback(null, true);
+                return;
+            }
+        } catch (_) {}
 
         callback(new Error(`Origin ${origin} is not allowed by CORS`));
     },
