@@ -72,6 +72,7 @@ import financialRoutes from './routes/financials.js';
 import firebaseRoutes from './routes/firebase.js';
 import { initializeSubscriptionPlans } from './services/subscriptionService.js';
 import { NotificationService } from './services/notificationService.js';
+import { ensureSchemaIntegrity } from './utils/schemaGuard.js';
 
 import path from 'path';
 import fs from 'fs';
@@ -129,7 +130,11 @@ const candidateFrontendPaths = [
 const frontendPath = candidateFrontendPaths.find(p => fs.existsSync(p)) || path.join(__dirname, '../../dist');
 app.use(express.static(frontendPath, {
     setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
+        const isNoCache = filePath.endsWith('.html') ||
+                          filePath.endsWith('sw.js') ||
+                          filePath.includes('workbox') ||
+                          filePath.endsWith('.webmanifest');
+        if (isNoCache) {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
@@ -206,6 +211,9 @@ app.use('/api/firebase', firebaseRoutes);
 
 // Initialize subscription plans on startup
 initializeSubscriptionPlans().catch(console.error);
+
+// Ensure database schema integrity on startup
+ensureSchemaIntegrity().catch(console.error);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

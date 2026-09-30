@@ -4,8 +4,30 @@ import './index.css';
 import App from './App';
 import { registerSW } from 'virtual:pwa-register';
 
-// Register service worker for PWA
-registerSW({ immediate: true });
+// Register service worker for PWA with automatic cache-update & refresh
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true);
+  },
+  onRegisteredSW(_swUrl, registration) {
+    if (registration) {
+      setInterval(() => {
+        registration.update().catch(() => {});
+      }, 60 * 1000);
+    }
+  }
+});
+
+let refreshing = false;
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+}
 
 const clearStaleDevWorkers = async () => {
   if (!import.meta.env.DEV || !('serviceWorker' in navigator)) return;
